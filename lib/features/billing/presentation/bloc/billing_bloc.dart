@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import '../../domain/entities/cart_item.dart';
 import 'package:billing_app/features/product/domain/entities/product.dart';
 import 'package:billing_app/features/product/domain/usecases/product_usecases.dart';
+import 'package:billing_app/features/product/data/models/product_model.dart';
 import '../../../../core/utils/printer_helper.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../../core/data/hive_database.dart';
@@ -110,6 +111,21 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       );
       
       await HiveDatabase.salesBox.put(sale.id, sale);
+
+      // Decrement logic for products
+      for (final cartItem in state.cartItems) {
+        final productModel = HiveDatabase.productBox.get(cartItem.product.id);
+        if (productModel != null) {
+          final updatedProduct = ProductModel(
+            id: productModel.id,
+            name: productModel.name,
+            barcode: productModel.barcode,
+            price: productModel.price,
+            stock: (productModel.stock - cartItem.quantity < 0) ? 0 : productModel.stock - cartItem.quantity,
+          );
+          await HiveDatabase.productBox.put(productModel.id, updatedProduct);
+        }
+      }
 
       // Prepare items format for printer/PDF
       final itemsMapList = state.cartItems

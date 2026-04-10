@@ -8,8 +8,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../shop/data/models/shop_model.dart';
 
-class DailyReportPage extends StatelessWidget {
-  const DailyReportPage({super.key});
+class MonthlyReportPage extends StatelessWidget {
+  const MonthlyReportPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,19 +17,18 @@ class DailyReportPage extends StatelessWidget {
       valueListenable: HiveDatabase.salesBox.listenable(),
       builder: (context, box, _) {
         final now = DateTime.now();
-        final todaySales = box.values.where((sale) {
+        final thisMonthSales = box.values.where((sale) {
           return sale.timestamp.year == now.year &&
-              sale.timestamp.month == now.month &&
-              sale.timestamp.day == now.day;
+                 sale.timestamp.month == now.month;
         }).toList()
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
 
-        final totalToday = todaySales.fold(0.0, (sum, sale) => sum + sale.totalAmount);
+        final totalThisMonth = thisMonthSales.fold(0.0, (sum, sale) => sum + sale.totalAmount);
 
         // Top selling logic
         final itemQuantities = <String, int>{};
         final itemNames = <String, String>{};
-        for (final sale in todaySales) {
+        for (final sale in thisMonthSales) {
           for (final item in sale.items) {
             final currentQty = itemQuantities[item.productId] ?? 0;
             itemQuantities[item.productId] = currentQty + item.quantity;
@@ -40,9 +39,20 @@ class DailyReportPage extends StatelessWidget {
           ..sort((a, b) => b.value.compareTo(a.value));
         final top3 = topItems.take(3).toList();
 
+        final dailyAggregates = <int, Map<String, dynamic>>{};
+        for (final sale in thisMonthSales) {
+          final day = sale.timestamp.day;
+          if (!dailyAggregates.containsKey(day)) {
+            dailyAggregates[day] = {'total': 0.0, 'bills': 0, 'timestamp': sale.timestamp};
+          }
+          dailyAggregates[day]!['total'] += sale.totalAmount;
+          dailyAggregates[day]!['bills'] += 1;
+        }
+        final sortedDays = dailyAggregates.keys.toList()..sort((a, b) => b.compareTo(a));
+
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Daily Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            title: const Text('Monthly Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             centerTitle: true,
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -54,8 +64,8 @@ class DailyReportPage extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.picture_as_pdf, color: AppTheme.primaryColor),
                 onPressed: () async {
-                  if (todaySales.isEmpty) {
-                     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No sales today to download.')));
+                  if (thisMonthSales.isEmpty) {
+                     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No sales this month to download.')));
                      return;
                   }
 
@@ -63,27 +73,30 @@ class DailyReportPage extends StatelessWidget {
                   final shopDetails = shopBox.get('shop_details') as ShopModel?;
                   final shopName = shopDetails?.name ?? 'My Shop';
                   
-                  final dateStr = DateFormat('dd-MM-yyyy').format(now);
+                  final dateStr = DateFormat('MMM yyyy').format(now);
                   
                   final mappedTop = top3.map((entry) => {
                      'name': itemNames[entry.key] ?? 'Unknown',
                      'qty': entry.value
                   }).toList();
                   
-                  final mappedTx = todaySales.map((sale) => {
-                     'time': DateFormat('hh:mm a').format(sale.timestamp),
-                     'items': sale.items.length,
-                     'total': sale.totalAmount.toStringAsFixed(2),
+                  final mappedTx = sortedDays.map((day) {
+                     final agg = dailyAggregates[day]!;
+                     return {
+                       'time': DateFormat('dd MMM yyyy').format(agg['timestamp']),
+                       'items': '${agg['bills']} Bills',
+                       'total': (agg['total'] as double).toStringAsFixed(2),
+                     };
                   }).toList();
 
                   try {
                     await PdfHelper.generateReportSummaryPdf(
-                       reportTitle: 'Daily Sales Report',
-                       fileNamePrefix: 'daily_report',
+                       reportTitle: 'Monthly Sales Report',
+                       fileNamePrefix: 'monthly_report',
                        shopName: shopName,
                        dateString: dateStr,
-                       totalRevenue: totalToday,
-                       totalBills: todaySales.length,
+                       totalRevenue: totalThisMonth,
+                       totalBills: thisMonthSales.length,
                        topItems: mappedTop,
                        transactions: mappedTx,
                     );
@@ -119,9 +132,9 @@ class DailyReportPage extends StatelessWidget {
                   children: [
                     Column(
                       children: [
-                        const Text('TODAY\'S SALES', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        const Text('THIS MONTH\'S SALES', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                         const SizedBox(height: 8),
-                        Text('₹${totalToday.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        Text('₹${totalThisMonth.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     Container(width: 1, height: 40, color: Colors.white24),
@@ -129,7 +142,7 @@ class DailyReportPage extends StatelessWidget {
                       children: [
                         const Text('BILLS', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                         const SizedBox(height: 8),
-                        Text('${todaySales.length}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        Text('${thisMonthSales.length}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ],
@@ -171,77 +184,26 @@ class DailyReportPage extends StatelessWidget {
                 padding: EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('TRANSACTIONS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+                  child: Text('DAILY BREAKDOWN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
                 ),
               ),
               
               Expanded(
-                child: todaySales.isEmpty
-                    ? const Center(child: Text('No sales for today.', style: TextStyle(color: Colors.grey)))
+                child: sortedDays.isEmpty
+                    ? const Center(child: Text('No sales for this month.', style: TextStyle(color: Colors.grey)))
                     : ListView.builder(
-                        itemCount: todaySales.length,
+                        itemCount: sortedDays.length,
                         itemBuilder: (context, index) {
-                          final sale = todaySales[index];
+                          final day = sortedDays[index];
+                          final agg = dailyAggregates[day]!;
                           return ListTile(
                             leading: CircleAvatar(
                                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                               child: const Icon(Icons.receipt, color: AppTheme.primaryColor)
+                               child: const Icon(Icons.calendar_today, color: AppTheme.primaryColor, size: 20)
                             ),
-                            title: Text('Bill at ${DateFormat('hh:mm a').format(sale.timestamp)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('${sale.items.length} items'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('₹${sale.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                const SizedBox(width: 8),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(Icons.download, color: AppTheme.primaryColor, size: 20),
-                                    constraints: const BoxConstraints(),
-                                    padding: const EdgeInsets.all(8),
-                                    onPressed: () async {
-                                      final settingsBox = HiveDatabase.settingsBox;
-                                      final shopBox = HiveDatabase.shopBox;
-                                      
-                                      final shopDetails = shopBox.get('shop_details') as ShopModel?;
-                                      
-                                      final shopName = shopDetails?.name ?? 'My Shop';
-                                      final address1 = shopDetails?.addressLine1 ?? '';
-                                      final address2 = shopDetails?.addressLine2 ?? '';
-                                      final phone = shopDetails?.phoneNumber ?? '';
-                                      final footer = shopDetails?.footerText ?? 'Thank you for visiting!';
-                                      
-                                      final mappedItems = sale.items.map((item) => {
-                                        'name': item.productName,
-                                        'qty': item.quantity,
-                                        'price': item.price,
-                                        'total': item.price * item.quantity,
-                                      }).toList();
-                                      
-                                      try {
-                                        await PdfHelper.generateAndShareReceipt(
-                                          shopName: shopName,
-                                          address1: address1,
-                                          address2: address2,
-                                          phone: phone,
-                                          items: mappedItems,
-                                          total: sale.totalAmount,
-                                          footer: footer,
-                                        );
-                                      } catch (e) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to open PDF: $e')));
-                                        }
-                                      }
-                                    }
-                                  )
-                                )
-                              ]
-                            )
+                            title: Text(DateFormat('dd MMMM yyyy').format(agg['timestamp']), style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text('${agg['bills']} total bills logged.'),
+                            trailing: Text('₹${(agg['total'] as double).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
                           );
                         },
                       ),

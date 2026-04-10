@@ -121,6 +121,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: 'View today\'s sales and bills',
                   onTap: () => context.push('/daily_report'),
                 ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.calendar_month,
+                  title: 'Monthly Report',
+                  subtitle: 'View this month\'s aggregated sales',
+                  onTap: () => context.push('/monthly_report'),
+                ),
               ],
             ),
 

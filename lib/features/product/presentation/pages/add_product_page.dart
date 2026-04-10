@@ -22,6 +22,7 @@ class _AddProductPageState extends State<AddProductPage> {
   String _name = '';
   String _barcode = '';
   double _price = 0.0;
+  int _stock = 0;
 
   void _scanBarcode() async {
     final result = await context.push<String>('/scanner');
@@ -55,6 +56,7 @@ class _AddProductPageState extends State<AddProductPage> {
         name: _name,
         barcode: _barcode,
         price: _price,
+        stock: _stock,
       );
 
       context.read<ProductBloc>().add(AddProduct(product));
@@ -143,6 +145,20 @@ class _AddProductPageState extends State<AddProductPage> {
                     ),
                     validator: AppValidators.price,
                     onSaved: (value) => _price = double.parse(value!),
+                  ),
+                  const SizedBox(height: 24),
+                  const InputLabel(text: 'Available Stock'),
+                  TextFormField(
+                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                    decoration: const InputDecoration(
+                      hintText: '0',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return 'Required';
+                      if (int.tryParse(value) == null) return 'Invalid number';
+                      return null;
+                    },
+                    onSaved: (value) => _stock = int.parse(value!),
                   ),
                 ],
               ),

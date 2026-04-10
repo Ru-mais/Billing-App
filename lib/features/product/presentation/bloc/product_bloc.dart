@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import '../../domain/entities/product.dart';
 import '../../domain/usecases/product_usecases.dart';
 import '../../../../core/usecase/usecase.dart';
+import '../../../../core/data/hive_database.dart';
 
 part 'product_event.dart';
 part 'product_state.dart';
@@ -23,6 +24,13 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<AddProduct>(_onAddProduct);
     on<UpdateProduct>(_onUpdateProduct);
     on<DeleteProduct>(_onDeleteProduct);
+
+    // Auto update products list whenever the database changes (e.g. stock goes down during checkout)
+    HiveDatabase.productBox.watch().listen((_) {
+      if (!isClosed) {
+        add(LoadProducts());
+      }
+    });
   }
 
   Future<void> _onLoadProducts(
