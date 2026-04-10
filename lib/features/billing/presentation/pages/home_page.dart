@@ -28,8 +28,11 @@ class _HomePageState extends State<HomePage> {
   // Cooldown mapping to prevent rapid firing of the same barcode
   final Map<String, DateTime> _lastScanTimes = {};
 
+  final TextEditingController _manualCodeController = TextEditingController();
+
   @override
   void dispose() {
+    _manualCodeController.dispose();
     _scannerController.dispose();
     super.dispose();
   }
@@ -372,6 +375,53 @@ class _HomePageState extends State<HomePage> {
                 ),
               );
             },
+          ),
+          const Divider(height: 1),
+
+          // Manual Code Input
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _manualCodeController,
+                    decoration: InputDecoration(
+                      hintText: 'Enter product code manually',
+                      prefixIcon: const Icon(Icons.keyboard),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onSubmitted: (val) {
+                      if (val.trim().isNotEmpty) {
+                        context.read<BillingBloc>().add(ScanBarcodeEvent(val.trim()));
+                        _manualCodeController.clear();
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    final val = _manualCodeController.text.trim();
+                    if (val.isNotEmpty) {
+                      context.read<BillingBloc>().add(ScanBarcodeEvent(val));
+                      _manualCodeController.clear();
+                    }
+                  },
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           ),
           const Divider(height: 1),
 
