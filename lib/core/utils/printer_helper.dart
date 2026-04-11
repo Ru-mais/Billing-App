@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'pdf_helper.dart';
 
 class EscPos {
   static const List<int> init = [0x1B, 0x40];
@@ -190,6 +191,49 @@ class PrinterHelper {
     bytes += EscPos.lineFeed; // One line space after footer
     bytes += EscPos.lineFeed;
     bytes += EscPos.lineFeed; // Additional Feed
+
+    await PrintBluetoothThermal.writeBytes(bytes);
+  }
+
+  Future<void> printProductLabel({
+    required String name,
+    required String barcode,
+    required double price,
+    required int copies,
+  }) async {
+    if (!_isConnected) {
+      await PdfHelper.generateProductLabelPdf(barcode: barcode, copies: copies);
+      return;
+    }
+
+    List<int> bytes = [];
+
+    // Setup barcode properties
+    final List<int> barcodeHeight = [0x1D, 0x68, 80]; // height
+    final List<int> barcodeWidth = [0x1D, 0x77, 2]; // width
+    final List<int> barcodeTextBelow = [0x1D, 0x48, 2]; // text below barcode
+    
+    // Code 128 format requires subset B: "{B"
+    String code128Data = "{B$barcode";
+    List<int> payload = List.from(code128Data.codeUnits);
+    final List<int> printBarcode = [0x1D, 0x6B, 73, payload.length]; 
+
+    for (int i = 0; i < copies; i++) {
+        bytes += EscPos.init;
+        bytes += EscPos.alignCenter;
+        
+        bytes += barcodeHeight;
+        bytes += barcodeWidth;
+        bytes += barcodeTextBelow;
+        
+        // Print the barcode
+        bytes += printBarcode;
+        bytes += payload;
+        
+        bytes += EscPos.lineFeed;
+        bytes += EscPos.lineFeed;
+        bytes += EscPos.lineFeed; // Space before next label
+    }
 
     await PrintBluetoothThermal.writeBytes(bytes);
   }

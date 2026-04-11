@@ -3,7 +3,6 @@ import 'package:equatable/equatable.dart';
 import '../../domain/entities/cart_item.dart';
 import 'package:billing_app/features/product/domain/entities/product.dart';
 import 'package:billing_app/features/product/domain/usecases/product_usecases.dart';
-import 'package:billing_app/features/product/data/models/product_model.dart';
 import '../../../../core/utils/printer_helper.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../../core/data/hive_database.dart';
@@ -20,6 +19,7 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       : super(const BillingState()) {
     on<ScanBarcodeEvent>(_onScanBarcode);
     on<AddProductToCartEvent>(_onAddProductToCart);
+    on<SizeSelectedEvent>(_onSizeSelected);
     on<RemoveProductFromCartEvent>(_onRemoveProductFromCart);
     on<UpdateQuantityEvent>(_onUpdateQuantity);
     on<ClearCartEvent>(_onClearCart);
@@ -33,35 +33,68 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       (failure) =>
           emit(state.copyWith(error: 'Product not found: ${event.barcode}')),
       (product) {
-        add(AddProductToCartEvent(product));
+        if (product.sizeStocks.length == 1) {
+          // Only one size — add directly
+          final size = product.sizeStocks.keys.first;
+          add(AddProductToCartEvent(product, selectedSize: size));
+        } else {
+          // Multiple or zero sizes — ask user to pick
+          emit(state.copyWith(pendingSizeProduct: product, clearError: true));
+        }
       },
     );
   }
 
+  void _onSizeSelected(
+      SizeSelectedEvent event, Emitter<BillingState> emit) {
+    // __cancel__ means user dismissed the picker without selecting
+    if (event.selectedSize == '__cancel__') {
+      emit(state.copyWith(clearPendingProduct: true));
+      return;
+    }
+    final product = state.pendingSizeProduct;
+    if (product == null) return;
+    emit(state.copyWith(clearPendingProduct: true));
+    add(AddProductToCartEvent(product, selectedSize: event.selectedSize));
+  }
+
   void _onAddProductToCart(
       AddProductToCartEvent event, Emitter<BillingState> emit) {
-    // Clear error when adding
-    final cleanState = state.copyWith(error: null);
+    final cleanState = state.copyWith(clearError: true, clearPendingProduct: true);
+    final cartKey = '${event.product.id}_${event.selectedSize}';
 
     final existingIndex = cleanState.cartItems
-        .indexWhere((item) => item.product.id == event.product.id);
+        .indexWhere((item) => item.cartKey == cartKey);
     if (existingIndex >= 0) {
       final existingItem = cleanState.cartItems[existingIndex];
-      final backendItems = List<CartItem>.from(cleanState.cartItems);
-      backendItems[existingIndex] =
+      final updatedItems = List<CartItem>.from(cleanState.cartItems);
+      updatedItems[existingIndex] =
           existingItem.copyWith(quantity: existingItem.quantity + 1);
-      emit(cleanState.copyWith(cartItems: backendItems, error: null));
+      emit(cleanState.copyWith(cartItems: updatedItems));
     } else {
-      final newItem = CartItem(product: event.product);
+      final newItem = CartItem(
+        product: event.product,
+        selectedSize: event.selectedSize,
+      );
       emit(cleanState.copyWith(
-          cartItems: [...cleanState.cartItems, newItem], error: null));
+          cartItems: [...cleanState.cartItems, newItem]));
     }
+    // Stock is deducted at checkout, not when adding to cart
+  }
+
+  void _deductSizeStock(String productId, String size, {int by = 1}) {
+    final productModel = HiveDatabase.productBox.get(productId);
+    if (productModel == null || size.isEmpty || size == '__cancel__') return;
+    final currentStock = productModel.sizeStocks[size] ?? 0;
+    final updatedStocks = Map<String, int>.from(productModel.sizeStocks);
+    updatedStocks[size] = (currentStock - by).clamp(0, 999999);
+    HiveDatabase.productBox.put(productId, productModel.copyWith(sizeStocks: updatedStocks));
   }
 
   void _onRemoveProductFromCart(
       RemoveProductFromCartEvent event, Emitter<BillingState> emit) {
     final updatedList = state.cartItems
-        .where((item) => item.product.id != event.productId)
+        .where((item) => item.cartKey != event.productId)
         .toList();
     emit(state.copyWith(cartItems: updatedList));
   }
@@ -72,12 +105,12 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       add(RemoveProductFromCartEvent(event.productId));
       return;
     }
-
     final index = state.cartItems
-        .indexWhere((item) => item.product.id == event.productId);
+        .indexWhere((item) => item.cartKey == event.productId);
     if (index >= 0) {
+      final currentItem = state.cartItems[index];
       final items = List<CartItem>.from(state.cartItems);
-      items[index] = items[index].copyWith(quantity: event.quantity);
+      items[index] = currentItem.copyWith(quantity: event.quantity);
       emit(state.copyWith(cartItems: items));
     }
   }
@@ -108,23 +141,14 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
          timestamp: DateTime.now(),
          items: saleItems,
          totalAmount: state.totalAmount,
+         paymentMethod: event.paymentMethod,
       );
       
       await HiveDatabase.salesBox.put(sale.id, sale);
 
-      // Decrement logic for products
-      for (final cartItem in state.cartItems) {
-        final productModel = HiveDatabase.productBox.get(cartItem.product.id);
-        if (productModel != null) {
-          final updatedProduct = ProductModel(
-            id: productModel.id,
-            name: productModel.name,
-            barcode: productModel.barcode,
-            price: productModel.price,
-            stock: (productModel.stock - cartItem.quantity < 0) ? 0 : productModel.stock - cartItem.quantity,
-          );
-          await HiveDatabase.productBox.put(productModel.id, updatedProduct);
-        }
+      // Deduct stock per size at checkout (sale finalization)
+      for (final item in state.cartItems) {
+        _deductSizeStock(item.product.id, item.selectedSize, by: item.quantity);
       }
 
       // Prepare items format for printer/PDF

@@ -9,7 +9,9 @@ import '../../../../core/utils/pdf_helper.dart';
 import '../../../shop/data/models/shop_model.dart';
 
 class DailyReportPage extends StatelessWidget {
-  const DailyReportPage({super.key});
+  /// If provided, shows report for that specific date. Defaults to today.
+  final DateTime? targetDate;
+  const DailyReportPage({super.key, this.targetDate});
 
   @override
   Widget build(BuildContext context) {
@@ -17,14 +19,22 @@ class DailyReportPage extends StatelessWidget {
       valueListenable: HiveDatabase.salesBox.listenable(),
       builder: (context, box, _) {
         final now = DateTime.now();
+        final date = targetDate ?? now;
         final todaySales = box.values.where((sale) {
-          return sale.timestamp.year == now.year &&
-              sale.timestamp.month == now.month &&
-              sale.timestamp.day == now.day;
+          return sale.timestamp.year == date.year &&
+                 sale.timestamp.month == date.month &&
+                 sale.timestamp.day == date.day;
         }).toList()
-          ..sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+        final isToday = targetDate == null;
+        final dateLabel = isToday
+            ? 'Today'
+            : DateFormat('dd MMM yyyy').format(date); // Newest first
 
         final totalToday = todaySales.fold(0.0, (sum, sale) => sum + sale.totalAmount);
+        final totalCash = todaySales.where((s) => s.paymentMethod != 'QR').fold(0.0, (sum, sale) => sum + sale.totalAmount);
+        final totalQR = todaySales.where((s) => s.paymentMethod == 'QR').fold(0.0, (sum, sale) => sum + sale.totalAmount);
 
         // Top selling logic
         final itemQuantities = <String, int>{};
@@ -42,7 +52,10 @@ class DailyReportPage extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Daily Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            title: Text(
+              isToday ? 'Daily Report' : 'Report: $dateLabel',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
             centerTitle: true,
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -55,7 +68,7 @@ class DailyReportPage extends StatelessWidget {
                 icon: const Icon(Icons.picture_as_pdf, color: AppTheme.primaryColor),
                 onPressed: () async {
                   if (todaySales.isEmpty) {
-                     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No sales today to download.')));
+                     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No sales on $dateLabel to download.')));
                      return;
                   }
 
@@ -63,7 +76,7 @@ class DailyReportPage extends StatelessWidget {
                   final shopDetails = shopBox.get('shop_details') as ShopModel?;
                   final shopName = shopDetails?.name ?? 'My Shop';
                   
-                  final dateStr = DateFormat('dd-MM-yyyy').format(now);
+                  final dateStr = DateFormat('dd-MM-yyyy').format(date);
                   
                   final mappedTop = top3.map((entry) => {
                      'name': itemNames[entry.key] ?? 'Unknown',
@@ -72,7 +85,7 @@ class DailyReportPage extends StatelessWidget {
                   
                   final mappedTx = todaySales.map((sale) => {
                      'time': DateFormat('hh:mm a').format(sale.timestamp),
-                     'items': sale.items.length,
+                     'items': '${sale.items.length} items (${sale.paymentMethod})',
                      'total': sale.totalAmount.toStringAsFixed(2),
                   }).toList();
 
@@ -84,6 +97,8 @@ class DailyReportPage extends StatelessWidget {
                        dateString: dateStr,
                        totalRevenue: totalToday,
                        totalBills: todaySales.length,
+                       totalCash: totalCash,
+                       totalQR: totalQR,
                        topItems: mappedTop,
                        transactions: mappedTx,
                     );
@@ -119,9 +134,14 @@ class DailyReportPage extends StatelessWidget {
                   children: [
                     Column(
                       children: [
-                        const Text('TODAY\'S SALES', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        Text(
+                          isToday ? 'TODAY\'S SALES' : '${dateLabel.toUpperCase()} SALES',
+                          style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                        ),
                         const SizedBox(height: 8),
                         Text('₹${totalToday.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('Cash: ₹${totalCash.toStringAsFixed(0)} | QR: ₹${totalQR.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70, fontSize: 10)),
                       ],
                     ),
                     Container(width: 1, height: 40, color: Colors.white24),
@@ -188,7 +208,7 @@ class DailyReportPage extends StatelessWidget {
                                child: const Icon(Icons.receipt, color: AppTheme.primaryColor)
                             ),
                             title: Text('Bill at ${DateFormat('hh:mm a').format(sale.timestamp)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('${sale.items.length} items'),
+                            subtitle: Text('${sale.items.length} items • ${sale.paymentMethod}'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../shop/data/models/shop_model.dart';
+import 'daily_report_page.dart';
 
 class MonthlyReportPage extends StatelessWidget {
   const MonthlyReportPage({super.key});
@@ -24,6 +25,8 @@ class MonthlyReportPage extends StatelessWidget {
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
 
         final totalThisMonth = thisMonthSales.fold(0.0, (sum, sale) => sum + sale.totalAmount);
+        final totalCash = thisMonthSales.where((s) => s.paymentMethod != 'QR').fold(0.0, (sum, sale) => sum + sale.totalAmount);
+        final totalQR = thisMonthSales.where((s) => s.paymentMethod == 'QR').fold(0.0, (sum, sale) => sum + sale.totalAmount);
 
         // Top selling logic
         final itemQuantities = <String, int>{};
@@ -43,9 +46,15 @@ class MonthlyReportPage extends StatelessWidget {
         for (final sale in thisMonthSales) {
           final day = sale.timestamp.day;
           if (!dailyAggregates.containsKey(day)) {
-            dailyAggregates[day] = {'total': 0.0, 'bills': 0, 'timestamp': sale.timestamp};
+            dailyAggregates[day] = {'total': 0.0, 'cash': 0.0, 'qr': 0.0, 'bills': 0, 'timestamp': sale.timestamp};
           }
+          final isQR = sale.paymentMethod == 'QR';
           dailyAggregates[day]!['total'] += sale.totalAmount;
+          if (isQR) {
+            dailyAggregates[day]!['qr'] += sale.totalAmount;
+          } else {
+            dailyAggregates[day]!['cash'] += sale.totalAmount;
+          }
           dailyAggregates[day]!['bills'] += 1;
         }
         final sortedDays = dailyAggregates.keys.toList()..sort((a, b) => b.compareTo(a));
@@ -84,7 +93,7 @@ class MonthlyReportPage extends StatelessWidget {
                      final agg = dailyAggregates[day]!;
                      return {
                        'time': DateFormat('dd MMM yyyy').format(agg['timestamp']),
-                       'items': '${agg['bills']} Bills',
+                       'items': 'Cash: ₹${(agg['cash'] as double).toStringAsFixed(0)} | QR: ₹${(agg['qr'] as double).toStringAsFixed(0)}',
                        'total': (agg['total'] as double).toStringAsFixed(2),
                      };
                   }).toList();
@@ -97,6 +106,8 @@ class MonthlyReportPage extends StatelessWidget {
                        dateString: dateStr,
                        totalRevenue: totalThisMonth,
                        totalBills: thisMonthSales.length,
+                       totalCash: totalCash,
+                       totalQR: totalQR,
                        topItems: mappedTop,
                        transactions: mappedTx,
                     );
@@ -130,11 +141,13 @@ class MonthlyReportPage extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Column(
+                     Column(
                       children: [
                         const Text('THIS MONTH\'S SALES', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                         const SizedBox(height: 8),
                         Text('₹${totalThisMonth.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('Cash: ₹${totalCash.toStringAsFixed(0)} | QR: ₹${totalQR.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70, fontSize: 10)),
                       ],
                     ),
                     Container(width: 1, height: 40, color: Colors.white24),
@@ -192,18 +205,46 @@ class MonthlyReportPage extends StatelessWidget {
                 child: sortedDays.isEmpty
                     ? const Center(child: Text('No sales for this month.', style: TextStyle(color: Colors.grey)))
                     : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 32),
                         itemCount: sortedDays.length,
                         itemBuilder: (context, index) {
                           final day = sortedDays[index];
                           final agg = dailyAggregates[day]!;
-                          return ListTile(
-                            leading: CircleAvatar(
-                               backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                               child: const Icon(Icons.calendar_today, color: AppTheme.primaryColor, size: 20)
+                          final dayDate = agg['timestamp'] as DateTime;
+                          return InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DailyReportPage(targetDate: dayDate),
+                                ),
+                              );
+                            },
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                                child: Text(
+                                  '${day}',
+                                  style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              title: Text(
+                                DateFormat('dd MMMM yyyy').format(dayDate),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text('${agg['bills']} bill(s) • QR: ₹${(agg['qr'] as double).toStringAsFixed(0)} • Cash: ₹${(agg['cash'] as double).toStringAsFixed(0)}'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '₹${(agg['total'] as double).toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.chevron_right, color: Colors.grey[300]),
+                                ],
+                              ),
                             ),
-                            title: Text(DateFormat('dd MMMM yyyy').format(agg['timestamp']), style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('${agg['bills']} total bills logged.'),
-                            trailing: Text('₹${(agg['total'] as double).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
                           );
                         },
                       ),

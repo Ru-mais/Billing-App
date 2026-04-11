@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_vibrate/flutter_vibrate.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../billing/presentation/bloc/billing_bloc.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../domain/entities/cart_item.dart';
+import '../../../../features/product/presentation/bloc/product_bloc.dart';
+import '../../../../features/product/domain/entities/product.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,9 +31,11 @@ class _HomePageState extends State<HomePage> {
   final Map<String, DateTime> _lastScanTimes = {};
 
   final TextEditingController _manualCodeController = TextEditingController();
+  final FocusNode _manualCodeFocusNode = FocusNode();
 
   @override
   void dispose() {
+    _manualCodeFocusNode.dispose();
     _manualCodeController.dispose();
     _scannerController.dispose();
     super.dispose();
@@ -55,11 +59,8 @@ class _HomePageState extends State<HomePage> {
 
         _lastScanTimes[rawValue] = now;
 
-        // Vibrate
-        final canVibrate = await Vibrate.canVibrate;
-        if (canVibrate) {
-          Vibrate.feedback(FeedbackType.success);
-        }
+        // Vibrate Natively
+        HapticFeedback.lightImpact();
 
         if (mounted) {
           context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
@@ -74,7 +75,9 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: BlocListener<BillingBloc, BillingState>(
         listenWhen: (previous, current) =>
-            previous.error != current.error && current.error != null,
+            (previous.error != current.error && current.error != null) ||
+            (previous.pendingSizeProduct != current.pendingSizeProduct &&
+                current.pendingSizeProduct != null),
         listener: (context, state) {
           if (state.error != null) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -84,6 +87,9 @@ class _HomePageState extends State<HomePage> {
                 behavior: SnackBarBehavior.floating,
               ),
             );
+          }
+          if (state.pendingSizeProduct != null) {
+            _showSizePicker(context, state.pendingSizeProduct!);
           }
         },
         child: Stack(
@@ -381,46 +387,105 @@ class _HomePageState extends State<HomePage> {
           // Manual Code Input
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _manualCodeController,
-                    decoration: InputDecoration(
-                      hintText: 'Enter product code manually',
-                      prefixIcon: const Icon(Icons.keyboard),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onSubmitted: (val) {
-                      if (val.trim().isNotEmpty) {
-                        context.read<BillingBloc>().add(ScanBarcodeEvent(val.trim()));
-                        _manualCodeController.clear();
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () {
-                    final val = _manualCodeController.text.trim();
-                    if (val.isNotEmpty) {
-                      context.read<BillingBloc>().add(ScanBarcodeEvent(val));
-                      _manualCodeController.clear();
+            child: BlocBuilder<ProductBloc, ProductState>(
+              builder: (context, productState) {
+                return RawAutocomplete<Product>(
+                  focusNode: _manualCodeFocusNode,
+                  textEditingController: _manualCodeController,
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return const Iterable<Product>.empty();
                     }
+                    final query = textEditingValue.text.toLowerCase();
+                    return productState.products.where((product) {
+                      return product.name.toLowerCase().contains(query) ||
+                          product.barcode.toLowerCase().contains(query);
+                    });
                   },
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white),
-                  ),
-                ),
-              ],
+                  displayStringForOption: (Product option) => option.barcode,
+                  onSelected: (Product selection) {
+                    context.read<BillingBloc>().add(ScanBarcodeEvent(selection.barcode));
+                    _manualCodeController.clear();
+                    _manualCodeFocusNode.requestFocus();
+                  },
+                  fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: textEditingController,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              hintText: 'Enter product code or name',
+                              prefixIcon: const Icon(Icons.search),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onSubmitted: (val) {
+                              if (val.trim().isNotEmpty) {
+                                context.read<BillingBloc>().add(ScanBarcodeEvent(val.trim()));
+                                textEditingController.clear();
+                                focusNode.requestFocus();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () {
+                            final val = textEditingController.text.trim();
+                            if (val.isNotEmpty) {
+                              context.read<BillingBloc>().add(ScanBarcodeEvent(val));
+                              textEditingController.clear();
+                              focusNode.requestFocus();
+                            }
+                          },
+                          icon: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.add, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4.0,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 250),
+                          width: MediaQuery.of(context).size.width - 32 - 48, // approximate width to match text field
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (context, index) {
+                              final option = options.elementAt(index);
+                              return ListTile(
+                                title: Text(option.name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text('Code: ${option.barcode} - ₹${option.price}'),
+                                onTap: () {
+                                  onSelected(option);
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
           const Divider(height: 1),
@@ -510,7 +575,7 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.product.name,
+                  '${item.product.name}${item.selectedSize.isNotEmpty ? " · Size ${item.selectedSize}" : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 14),
                   maxLines: 2,
@@ -541,11 +606,11 @@ class _HomePageState extends State<HomePage> {
                     onPressed: () {
                       if (item.quantity > 1) {
                         context.read<BillingBloc>().add(UpdateQuantityEvent(
-                            item.product.id, item.quantity - 1));
+                            item.cartKey, item.quantity - 1));
                       } else {
                         context
                             .read<BillingBloc>()
-                            .add(RemoveProductFromCartEvent(item.product.id));
+                            .add(RemoveProductFromCartEvent(item.cartKey));
                       }
                     }),
                 SizedBox(
@@ -560,7 +625,7 @@ class _HomePageState extends State<HomePage> {
                     icon: Icons.add,
                     onPressed: () {
                       context.read<BillingBloc>().add(UpdateQuantityEvent(
-                          item.product.id, item.quantity + 1));
+                          item.cartKey, item.quantity + 1));
                     }),
               ],
             ),
@@ -580,6 +645,102 @@ class _HomePageState extends State<HomePage> {
         child: Icon(icon, size: 20, color: Colors.grey[600]),
       ),
     );
+  }
+
+  void _showSizePicker(BuildContext context, product) {
+    final sizeEntries = (product.sizeStocks as Map<String, int>).entries.toList();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetCtx) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.straighten, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Select Size — ${product.name}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: sizeEntries.map((entry) {
+                    final isOutOfStock = entry.value <= 0;
+                    return GestureDetector(
+                      onTap: isOutOfStock
+                          ? null
+                          : () {
+                              Navigator.pop(sheetCtx);
+                              context.read<BillingBloc>()
+                                  .add(SizeSelectedEvent(entry.key));
+                            },
+                      child: Container(
+                        width: 72,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isOutOfStock
+                              ? Colors.grey[100]
+                              : Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isOutOfStock
+                                ? Colors.grey[300]!
+                                : Theme.of(context).primaryColor.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              entry.key,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: isOutOfStock
+                                    ? Colors.grey[400]
+                                    : Theme.of(context).primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isOutOfStock ? 'Out' : 'Qty: ${entry.value}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isOutOfStock ? Colors.red[300] : Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      ).then((_) {
+        // If dismissed without picking, clear the pending product
+        if (context.mounted) {
+          context.read<BillingBloc>().add(const SizeSelectedEvent('__cancel__'));
+        }
+      });
+    });
   }
 
   // A floating Details/Checkout Button at the very bottom

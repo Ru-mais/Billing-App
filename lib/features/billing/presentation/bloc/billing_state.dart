@@ -5,12 +5,14 @@ class BillingState extends Equatable {
   final String? error;
   final bool isPrinting;
   final bool printSuccess;
+  final Product? pendingSizeProduct; // product waiting for size selection
 
   const BillingState({
     this.cartItems = const [],
     this.error,
     this.isPrinting = false,
     this.printSuccess = false,
+    this.pendingSizeProduct,
   });
 
   double get totalAmount => cartItems.fold(0, (sum, item) => sum + item.total);
@@ -21,15 +23,18 @@ class BillingState extends Equatable {
     bool clearError = false,
     bool? isPrinting,
     bool? printSuccess,
+    Product? pendingSizeProduct,
+    bool clearPendingProduct = false,
   }) {
     return BillingState(
       cartItems: cartItems ?? this.cartItems,
       error: clearError ? null : (error ?? this.error),
       isPrinting: isPrinting ?? this.isPrinting,
       printSuccess: printSuccess ?? this.printSuccess,
+      pendingSizeProduct: clearPendingProduct ? null : (pendingSizeProduct ?? this.pendingSizeProduct),
     );
   }
 
   @override
-  List<Object?> get props => [cartItems, error, isPrinting, printSuccess];
+  List<Object?> get props => [cartItems, error, isPrinting, printSuccess, pendingSizeProduct];
 }

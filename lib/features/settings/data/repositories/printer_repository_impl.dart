@@ -51,4 +51,9 @@ class PrinterRepositoryImpl implements PrinterRepository {
     await _printerHelper
         .printText("Test Print\n\n$shopName\n\n----------------\n\n");
   }
+
+  @override
+  Future<void> printProductLabel({required String name, required String barcode, required double price, required int copies}) async {
+    await _printerHelper.printProductLabel(name: name, barcode: barcode, price: price, copies: copies);
+  }
 }

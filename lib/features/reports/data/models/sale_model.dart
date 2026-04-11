@@ -16,11 +16,15 @@ class SaleModel extends HiveObject {
   @HiveField(3)
   final double totalAmount;
 
+  @HiveField(4, defaultValue: 'Cash')
+  final String paymentMethod;
+
   SaleModel({
     required this.id,
     required this.timestamp,
     required this.items,
     required this.totalAmount,
+    required this.paymentMethod,
   });
 }
 

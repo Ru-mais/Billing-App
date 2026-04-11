@@ -15,9 +15,17 @@ class ScanBarcodeEvent extends BillingEvent {
 
 class AddProductToCartEvent extends BillingEvent {
   final Product product;
-  const AddProductToCartEvent(this.product);
+  final String selectedSize;
+  const AddProductToCartEvent(this.product, {required this.selectedSize});
   @override
-  List<Object> get props => [product];
+  List<Object> get props => [product, selectedSize];
+}
+
+class SizeSelectedEvent extends BillingEvent {
+  final String selectedSize;
+  const SizeSelectedEvent(this.selectedSize);
+  @override
+  List<Object> get props => [selectedSize];
 }
 
 class RemoveProductFromCartEvent extends BillingEvent {
@@ -43,6 +51,7 @@ class PrintReceiptEvent extends BillingEvent {
   final String address2;
   final String phone;
   final String footer;
+  final String paymentMethod;
 
   const PrintReceiptEvent({
     required this.shopName,
@@ -50,8 +59,9 @@ class PrintReceiptEvent extends BillingEvent {
     required this.address2,
     required this.phone,
     required this.footer,
+    this.paymentMethod = 'Cash',
   });
 
   @override
-  List<Object> get props => [shopName, address1, address2, phone, footer];
+  List<Object> get props => [shopName, address1, address2, phone, footer, paymentMethod];
 }

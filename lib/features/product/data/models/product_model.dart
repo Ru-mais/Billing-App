@@ -18,21 +18,21 @@ class ProductModel extends Product {
   @HiveField(3)
   final double price;
   @override
-  @HiveField(4)
-  final int stock;
+  @HiveField(6, defaultValue: {})
+  final Map<String, int> sizeStocks;
 
   const ProductModel({
     required this.id,
     required this.name,
     required this.barcode,
     required this.price,
-    required this.stock,
+    required this.sizeStocks,
   }) : super(
           id: id,
           name: name,
           barcode: barcode,
           price: price,
-          stock: stock,
+          sizeStocks: sizeStocks,
         );
 
   factory ProductModel.fromEntity(Product product) {
@@ -41,7 +41,7 @@ class ProductModel extends Product {
       name: product.name,
       barcode: product.barcode,
       price: product.price,
-      stock: product.stock,
+      sizeStocks: product.sizeStocks,
     );
   }
 
@@ -51,7 +51,23 @@ class ProductModel extends Product {
       name: name,
       barcode: barcode,
       price: price,
-      stock: stock,
+      sizeStocks: sizeStocks,
+    );
+  }
+
+  ProductModel copyWith({
+    String? id,
+    String? name,
+    String? barcode,
+    double? price,
+    Map<String, int>? sizeStocks,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      barcode: barcode ?? this.barcode,
+      price: price ?? this.price,
+      sizeStocks: sizeStocks ?? this.sizeStocks,
     );
   }
 }

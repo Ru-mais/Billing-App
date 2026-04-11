@@ -13,6 +13,7 @@ class PrinterBloc extends Bloc<PrinterEvent, PrinterState> {
     on<ConnectPrinterEvent>(_onConnect);
     on<DisconnectPrinterEvent>(_onDisconnect);
     on<TestPrintEvent>(_onTestPrint);
+    on<PrintLabelEvent>(_onPrintLabel);
   }
 
   void _onInit(InitPrinterEvent event, Emitter<PrinterState> emit) {
@@ -121,6 +122,17 @@ class PrinterBloc extends Bloc<PrinterEvent, PrinterState> {
       TestPrintEvent event, Emitter<PrinterState> emit) async {
     emit(state.copyWith(status: PrinterStatus.testPrinting));
     await repository.testPrint(event.shopName);
+    emit(state.copyWith(status: PrinterStatus.scanSuccess));
+  }
+
+  Future<void> _onPrintLabel(
+      PrintLabelEvent event, Emitter<PrinterState> emit) async {
+    emit(state.copyWith(status: PrinterStatus.testPrinting));
+    await repository.printProductLabel(
+        name: event.name,
+        barcode: event.barcode,
+        price: event.price,
+        copies: event.copies);
     emit(state.copyWith(status: PrinterStatus.scanSuccess));
   }
 }

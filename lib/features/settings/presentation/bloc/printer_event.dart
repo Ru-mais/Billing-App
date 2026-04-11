@@ -33,3 +33,20 @@ class TestPrintEvent extends PrinterEvent {
   @override
   List<Object?> get props => [shopName];
 }
+
+class PrintLabelEvent extends PrinterEvent {
+  final String name;
+  final String barcode;
+  final double price;
+  final int copies;
+
+  const PrintLabelEvent({
+    required this.name,
+    required this.barcode,
+    required this.price,
+    required this.copies,
+  });
+
+  @override
+  List<Object?> get props => [name, barcode, price, copies];
+}

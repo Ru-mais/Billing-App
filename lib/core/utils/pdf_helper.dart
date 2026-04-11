@@ -99,6 +99,8 @@ class PdfHelper {
     required String dateString,
     required double totalRevenue,
     required int totalBills,
+    double? totalCash,
+    double? totalQR,
     required List<Map<String, dynamic>> topItems,
     required List<Map<String, dynamic>> transactions,
   }) async {
@@ -141,6 +143,10 @@ class PdfHelper {
                         pw.Text('TOTAL REVENUE', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue900)),
                         pw.SizedBox(height: 4),
                         pw.Text('Rs. ${totalRevenue.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                        if (totalCash != null && totalQR != null) ...[
+                           pw.SizedBox(height: 8),
+                           pw.Text('Cash: Rs. ${totalCash.toStringAsFixed(0)} | QR: Rs. ${totalQR.toStringAsFixed(0)}', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue700)),
+                        ]
                       ]
                     )
                   )
@@ -236,6 +242,49 @@ class PdfHelper {
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => await pdf.save(),
         name: '${fileNamePrefix}_$formattedSafeDate.pdf',
+      );
+    } catch (e) {
+      debugPrint('PDF layout error: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> generateProductLabelPdf({
+    required String barcode,
+    required int copies,
+  }) async {
+    final pdf = pw.Document();
+
+    for (int i = 0; i < copies; i++) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.roll80,
+          build: (pw.Context context) {
+            return pw.Center(
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.all(16),
+                child: pw.BarcodeWidget(
+                  data: barcode,
+                  barcode: pw.Barcode.code128(),
+                  width: 160,
+                  height: 60,
+                  drawText: true,
+                  textStyle: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => await pdf.save(),
+        name: 'label_$barcode.pdf',
       );
     } catch (e) {
       debugPrint('PDF layout error: $e');

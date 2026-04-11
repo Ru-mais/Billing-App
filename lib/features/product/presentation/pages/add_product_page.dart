@@ -17,25 +17,52 @@ class AddProductPage extends StatefulWidget {
   State<AddProductPage> createState() => _AddProductPageState();
 }
 
+class _SizeStockRow {
+  final TextEditingController sizeCtrl;
+  final TextEditingController stockCtrl;
+  _SizeStockRow()
+      : sizeCtrl = TextEditingController(),
+        stockCtrl = TextEditingController();
+
+  void dispose() {
+    sizeCtrl.dispose();
+    stockCtrl.dispose();
+  }
+}
+
 class _AddProductPageState extends State<AddProductPage> {
   final _formKey = GlobalKey<FormState>();
   String _name = '';
   String _barcode = '';
   double _price = 0.0;
-  int _stock = 0;
+  final List<_SizeStockRow> _sizeRows = [_SizeStockRow()];
+
+  @override
+  void dispose() {
+    for (final r in _sizeRows) { r.dispose(); }
+    super.dispose();
+  }
 
   void _scanBarcode() async {
     final result = await context.push<String>('/scanner');
     if (result != null && result.isNotEmpty) {
-      setState(() {
-        _barcode = result;
-      });
+      setState(() => _barcode = result);
     }
   }
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+
+      // Build sizeStocks map from rows
+      final Map<String, int> sizeStocks = {};
+      for (final row in _sizeRows) {
+        final size = row.sizeCtrl.text.trim();
+        final stock = int.tryParse(row.stockCtrl.text.trim()) ?? 0;
+        if (size.isNotEmpty) {
+          sizeStocks[size] = stock;
+        }
+      }
 
       final productState = context.read<ProductBloc>().state;
       final existingProduct =
@@ -56,7 +83,7 @@ class _AddProductPageState extends State<AddProductPage> {
         name: _name,
         barcode: _barcode,
         price: _price,
-        stock: _stock,
+        sizeStocks: sizeStocks,
       );
 
       context.read<ProductBloc>().add(AddProduct(product));
@@ -97,8 +124,7 @@ class _AddProductPageState extends State<AddProductPage> {
                           decoration: const InputDecoration(
                             hintText: 'Scan or enter barcode',
                           ),
-                          validator:
-                              AppValidators.required('Please enter a barcode'),
+                          validator: AppValidators.required('Please enter a barcode'),
                           onSaved: (value) => _barcode = value!,
                         ),
                       ),
@@ -123,9 +149,7 @@ class _AddProductPageState extends State<AddProductPage> {
                   const SizedBox(height: 24),
                   const InputLabel(text: 'Product Name'),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. Basmati Rice',
-                    ),
+                    decoration: const InputDecoration(hintText: 'e.g. Footwear Name'),
                     textCapitalization: TextCapitalization.words,
                     validator: AppValidators.required('Please enter a name'),
                     onSaved: (value) => _name = value!,
@@ -133,8 +157,7 @@ class _AddProductPageState extends State<AddProductPage> {
                   const SizedBox(height: 24),
                   const InputLabel(text: 'Price'),
                   TextFormField(
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       hintText: '0.00',
                       prefixText: '₹ ',
@@ -147,19 +170,87 @@ class _AddProductPageState extends State<AddProductPage> {
                     onSaved: (value) => _price = double.parse(value!),
                   ),
                   const SizedBox(height: 24),
-                  const InputLabel(text: 'Available Stock'),
-                  TextFormField(
-                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                    decoration: const InputDecoration(
-                      hintText: '0',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Required';
-                      if (int.tryParse(value) == null) return 'Invalid number';
-                      return null;
-                    },
-                    onSaved: (value) => _stock = int.parse(value!),
+
+                  // Sizes & Stock section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const InputLabel(text: 'Sizes & Stock'),
+                      TextButton.icon(
+                        onPressed: () => setState(() => _sizeRows.add(_SizeStockRow())),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Size'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.primaryColor,
+                          padding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+
+                  // Header row
+                  Row(
+                    children: [
+                      const Expanded(flex: 3, child: Text('Size', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                      const SizedBox(width: 8),
+                      const Expanded(flex: 3, child: Text('Available Stock', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                      const SizedBox(width: 36),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  ...List.generate(_sizeRows.length, (index) {
+                    final row = _sizeRows[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: row.sizeCtrl,
+                              decoration: const InputDecoration(
+                                hintText: 'e.g. 7',
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              ),
+                              validator: (val) =>
+                                  val == null || val.trim().isEmpty ? 'Required' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: row.stockCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                hintText: '0',
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) return 'Required';
+                                if (int.tryParse(val) == null) return 'Invalid';
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 22),
+                            onPressed: _sizeRows.length > 1
+                                ? () => setState(() {
+                                      _sizeRows[index].dispose();
+                                      _sizeRows.removeAt(index);
+                                    })
+                                : null,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),

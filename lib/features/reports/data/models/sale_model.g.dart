@@ -21,13 +21,14 @@ class SaleModelAdapter extends TypeAdapter<SaleModel> {
       timestamp: fields[1] as DateTime,
       items: (fields[2] as List).cast<SaleItemModel>(),
       totalAmount: fields[3] as double,
+      paymentMethod: fields[4] == null ? 'Cash' : fields[4] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, SaleModel obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -35,7 +36,9 @@ class SaleModelAdapter extends TypeAdapter<SaleModel> {
       ..writeByte(2)
       ..write(obj.items)
       ..writeByte(3)
-      ..write(obj.totalAmount);
+      ..write(obj.totalAmount)
+      ..writeByte(4)
+      ..write(obj.paymentMethod);
   }
 
   @override

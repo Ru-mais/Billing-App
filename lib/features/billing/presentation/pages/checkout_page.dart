@@ -1,4 +1,5 @@
 import 'package:billing_app/core/widgets/primary_button.dart';
+import 'package:billing_app/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,8 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
+  String _selectedPaymentMethod = 'Cash';
+
   @override
   Widget build(BuildContext context) {
     const borderColor = Color(0xFFE5E5EA);
@@ -219,6 +222,33 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: SegmentedButton<String>(
+                                    segments: const [
+                                      ButtonSegment<String>(value: 'Cash', label: Text('Cash', style: TextStyle(fontWeight: FontWeight.bold)), icon: Icon(Icons.money)),
+                                      ButtonSegment<String>(value: 'QR', label: Text('QR / UPI', style: TextStyle(fontWeight: FontWeight.bold)), icon: Icon(Icons.qr_code_scanner)),
+                                    ],
+                                    selected: {_selectedPaymentMethod},
+                                    onSelectionChanged: (Set<String> newSelection) {
+                                      setState(() {
+                                        _selectedPaymentMethod = newSelection.first;
+                                      });
+                                    },
+                                    style: ButtonStyle(
+                                       backgroundColor: WidgetStateProperty.resolveWith<Color>(
+                                          (Set<WidgetState> states) {
+                                            if (states.contains(WidgetState.selected)) {
+                                              return AppTheme.primaryColor.withValues(alpha: 0.1);
+                                            }
+                                            return Colors.transparent;
+                                          },
+                                       ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                               ],
                             ),
                           ),
@@ -231,7 +261,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                         address1: shopState.shop.addressLine1,
                                         address2: shopState.shop.addressLine2,
                                         phone: shopState.shop.phoneNumber,
-                                        footer: shopState.shop.footerText));
+                                        footer: shopState.shop.footerText,
+                                        paymentMethod: _selectedPaymentMethod));
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(

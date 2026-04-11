@@ -128,6 +128,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: 'View this month\'s aggregated sales',
                   onTap: () => context.push('/monthly_report'),
                 ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Product Stock Report',
+                  subtitle: 'Stock per size, sorted low to high',
+                  onTap: () => context.push('/product_report'),
+                ),
               ],
             ),
 

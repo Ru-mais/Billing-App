@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_vibrate/flutter_vibrate.dart';
-
+import 'package:flutter/services.dart';
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
 
@@ -30,11 +29,8 @@ class _ScannerPageState extends State<ScannerPage> {
     for (final barcode in barcodes) {
       if (barcode.rawValue != null) {
         _isScanned = true;
-        // Vibrate
-        final canVibrate = await Vibrate.canVibrate;
-        if (canVibrate) {
-          Vibrate.feedback(FeedbackType.success);
-        }
+        // Vibrate Natively
+        HapticFeedback.lightImpact();
 
         if (mounted) {
           context.pop(barcode.rawValue);

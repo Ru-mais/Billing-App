@@ -9,4 +9,5 @@ abstract class PrinterRepository {
   Future<void> savePrinterData(String mac, String name);
   Future<void> clearPrinterData();
   Future<void> testPrint(String shopName);
+  Future<void> printProductLabel({required String name, required String barcode, required double price, required int copies});
 }
