@@ -140,6 +140,35 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 24),
 
+            // Purchase Orders Section
+            _buildSectionHeader('Purchase Orders'),
+            _buildListGroup(
+              children: [
+                _buildListItem(
+                  icon: Icons.add_shopping_cart,
+                  title: 'Add Purchase Order',
+                  subtitle: 'Record a new restock order',
+                  onTap: () => context.push('/add_purchase_order'),
+                ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Daily Purchase Report',
+                  subtitle: 'View today\'s purchase orders',
+                  onTap: () => context.push('/daily_purchase_report'),
+                ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.calendar_today_outlined,
+                  title: 'Monthly Purchase Report',
+                  subtitle: 'View this month\'s purchase summary',
+                  onTap: () => context.push('/monthly_purchase_report'),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
             // Hardware Section
             _buildSectionHeader('Hardware'),
             BlocConsumer<PrinterBloc, PrinterState>(

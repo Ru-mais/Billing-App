@@ -101,8 +101,10 @@ class PdfHelper {
     required int totalBills,
     double? totalCash,
     double? totalQR,
+    required double totalExpense,
     required List<Map<String, dynamic>> topItems,
     required List<Map<String, dynamic>> transactions,
+    bool isSimple = false,
   }) async {
     final pdf = pw.Document();
 
@@ -110,6 +112,11 @@ class PdfHelper {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
+        footer: (pw.Context context) => pw.Container(
+          alignment: pw.Alignment.centerRight,
+          margin: const pw.EdgeInsets.only(top: 16),
+          child: pw.Text('Page ${context.pageNumber} of ${context.pagesCount}', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey)),
+        ),
         build: (pw.Context context) {
           return [
             // Header
@@ -118,122 +125,79 @@ class PdfHelper {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text(reportTitle, style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-                  pw.Text(shopName, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(reportTitle, style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                      pw.Text('Report Period: $dateString', style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+                    ]
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text(shopName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                      pw.Text(DateFormat('dd MMM yyyy').format(DateTime.now()), style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                    ]
+                  ),
                 ]
               )
             ),
-            pw.Text('Date: $dateString', style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+            pw.SizedBox(height: 20),
+
+            // Financial Summary Table
+            pw.Text('FINANCIAL SUMMARY', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+            pw.SizedBox(height: 10),
+            pw.Table.fromTextArray(
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              cellAlignment: pw.Alignment.centerLeft,
+              cellStyle: const pw.TextStyle(fontSize: 10),
+              data: [
+                ['Metric', 'Amount (Rs.)'],
+                ['Total Revenue', totalRevenue.toStringAsFixed(2)],
+                ['Total Expense', totalExpense.toStringAsFixed(2)],
+                ['Net Profit/Loss', (totalRevenue - totalExpense).toStringAsFixed(2)],
+                if (totalCash != null) ['Cash Income', totalCash.toStringAsFixed(2)],
+                if (totalQR != null) ['QR Income', totalQR.toStringAsFixed(2)],
+                ['Total Transactions', totalBills.toString()],
+              ],
+            ),
             pw.SizedBox(height: 24),
 
-            // Summary Boxes
-            pw.Row(
-              children: [
-                pw.Expanded(
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(16),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.blue50,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                      border: pw.Border.all(color: PdfColors.blue200)
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('TOTAL REVENUE', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue900)),
-                        pw.SizedBox(height: 4),
-                        pw.Text('Rs. ${totalRevenue.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                        if (totalCash != null && totalQR != null) ...[
-                           pw.SizedBox(height: 8),
-                           pw.Text('Cash: Rs. ${totalCash.toStringAsFixed(0)} | QR: Rs. ${totalQR.toStringAsFixed(0)}', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue700)),
-                        ]
-                      ]
-                    )
-                  )
-                ),
-                pw.SizedBox(width: 16),
-                pw.Expanded(
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(16),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.green50,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                      border: pw.Border.all(color: PdfColors.green200)
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('TOTAL BILLS', style: pw.TextStyle(fontSize: 10, color: PdfColors.green900)),
-                        pw.SizedBox(height: 4),
-                        pw.Text('$totalBills', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
-                      ]
-                    )
-                  )
-                )
-              ]
-            ),
-            pw.SizedBox(height: 32),
-
-            // Custom Simple Bar Chart Section
+            // Top Performing Items
             if (topItems.isNotEmpty) ...[
-              pw.Text('Top Selling Items Breakdown', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
-              pw.SizedBox(height: 12),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(16),
-                decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey300)),
-                child: pw.Column(
-                  children: topItems.map((item) {
-                     final maxQty = (topItems[0]['qty'] as int).toDouble();
-                     final ratio = (item['qty'] as int) / (maxQty > 0 ? maxQty : 1);
-                     
-                     return pw.Padding(
-                       padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                       child: pw.Row(
-                         children: [
-                           pw.SizedBox(width: 120, child: pw.Text('${item['name']}', maxLines: 1, style: const pw.TextStyle(fontSize: 10))),
-                           pw.SizedBox(width: 16),
-                           pw.Expanded(
-                             child: pw.Container(
-                               height: 12,
-                               alignment: pw.Alignment.centerLeft,
-                               child: pw.Container(
-                                 width: ratio * 200, // Visual representation scaled based on max element
-                                 height: 12,
-                                 decoration: const pw.BoxDecoration(
-                                   color: PdfColors.indigo400,
-                                   borderRadius: pw.BorderRadius.all(pw.Radius.circular(2))
-                                 )
-                               )
-                             )
-                           ),
-                           pw.SizedBox(width: 8),
-                           pw.Text('${item['qty']}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))
-                         ]
-                       )
-                     );
-                  }).toList()
-                )
+              pw.Text('TOP PERFORMING PRODUCTS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+              pw.SizedBox(height: 10),
+              pw.Table.fromTextArray(
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                data: [
+                  ['Product Name', 'Quantity Sold'],
+                  ...topItems.take(5).map((item) => [item['name'], item['qty'].toString()]),
+                ],
               ),
-              pw.SizedBox(height: 32),
+              pw.SizedBox(height: 24),
             ],
 
-            // Ledger
-            pw.Text('Transactions Ledger', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
+            // Detailed Ledger
+            pw.Text('TRANSACTION LEDGER', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
             pw.SizedBox(height: 12),
             pw.Table.fromTextArray(
-               context: context,
-               cellAlignment: pw.Alignment.centerLeft,
-               headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
-               headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-               cellStyle: const pw.TextStyle(fontSize: 10),
-               data: <List<String>>[
-                 <String>['Date / Time', 'Volume', 'Total (Rs)'],
-                 ...transactions.map((tz) => [tz['time'].toString(), tz['items'].toString(), tz['total'].toString()]),
-               ]
+              context: context,
+              cellAlignment: pw.Alignment.centerLeft,
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey100, width: 0.5))),
+              data: <List<String>>[
+                <String>['Date / Time', 'Description', 'Amount (Rs)'],
+                ...transactions.map((tz) => [tz['time'].toString(), tz['items'].toString(), tz['total'].toString()]),
+              ],
             ),
           ];
-        }
-      )
+        },
+      ),
     );
 
     // Generate PDF securely
@@ -247,6 +211,31 @@ class PdfHelper {
       debugPrint('PDF layout error: $e');
       rethrow;
     }
+  }
+
+  static pw.Widget _buildSummaryCard(String title, double value, PdfColor bgColor, PdfColor textColor, {double? totalCash, double? totalQR}) {
+    return pw.Expanded(
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(
+          color: bgColor,
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+          border: pw.Border.all(color: textColor, width: 0.5),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(title, style: pw.TextStyle(fontSize: 8, color: textColor, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.Text('Rs. ${value.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: textColor)),
+            if (totalCash != null && totalQR != null) ...[
+              pw.SizedBox(height: 4),
+            pw.Text('C: Rs. ${totalCash.toStringAsFixed(0)} | Q: Rs. ${totalQR.toStringAsFixed(0)}', style: pw.TextStyle(fontSize: 7, color: textColor)),
+            ]
+          ],
+        ),
+      ),
+    );
   }
 
   static Future<void> generateProductLabelPdf({

@@ -11,6 +11,9 @@ import '../../features/product/domain/entities/product.dart';
 import '../../features/reports/presentation/pages/daily_report_page.dart';
 import '../../features/reports/presentation/pages/monthly_report_page.dart';
 import '../../features/reports/presentation/pages/product_report_page.dart';
+import '../../features/reports/presentation/pages/add_purchase_order_page.dart';
+import '../../features/reports/presentation/pages/daily_purchase_report_page.dart';
+import '../../features/reports/presentation/pages/monthly_purchase_report_page.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -44,6 +47,18 @@ final router = GoRouter(
     GoRoute(
       path: '/product_report',
       builder: (context, state) => const ProductReportPage(),
+    ),
+    GoRoute(
+      path: '/add_purchase_order',
+      builder: (context, state) => const AddPurchaseOrderPage(),
+    ),
+    GoRoute(
+      path: '/daily_purchase_report',
+      builder: (context, state) => const DailyPurchaseReportPage(),
+    ),
+    GoRoute(
+      path: '/monthly_purchase_report',
+      builder: (context, state) => const MonthlyPurchaseReportPage(),
     ),
     GoRoute(
       path: '/products',

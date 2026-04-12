@@ -33,12 +33,15 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       (failure) =>
           emit(state.copyWith(error: 'Product not found: ${event.barcode}')),
       (product) {
-        if (product.sizeStocks.length == 1) {
+        if (!product.isSizeSpecific) {
+          // Unified product — add directly
+          add(AddProductToCartEvent(product, selectedSize: ''));
+        } else if (product.sizeStocks.length == 1) {
           // Only one size — add directly
           final size = product.sizeStocks.keys.first;
           add(AddProductToCartEvent(product, selectedSize: size));
         } else {
-          // Multiple or zero sizes — ask user to pick
+          // Multiple sizes — ask user to pick
           emit(state.copyWith(pendingSizeProduct: product, clearError: true));
         }
       },
@@ -84,11 +87,23 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
 
   void _deductSizeStock(String productId, String size, {int by = 1}) {
     final productModel = HiveDatabase.productBox.get(productId);
-    if (productModel == null || size.isEmpty || size == '__cancel__') return;
-    final currentStock = productModel.sizeStocks[size] ?? 0;
-    final updatedStocks = Map<String, int>.from(productModel.sizeStocks);
-    updatedStocks[size] = (currentStock - by).clamp(0, 999999);
-    HiveDatabase.productBox.put(productId, productModel.copyWith(sizeStocks: updatedStocks));
+    if (productModel == null) return;
+
+    if (!productModel.isSizeSpecific) {
+      // Deduct from baseStock
+      final updatedProduct = productModel.copyWith(
+        baseStock: (productModel.baseStock - by).clamp(0, 999999),
+      );
+      HiveDatabase.productBox.put(productId, updatedProduct);
+    } else {
+      // Deduct from sizeStocks map
+      if (size.isEmpty || size == '__cancel__') return;
+      final currentStock = productModel.sizeStocks[size] ?? 0;
+      final updatedStocks = Map<String, int>.from(productModel.sizeStocks);
+      updatedStocks[size] = (currentStock - by).clamp(0, 999999);
+      HiveDatabase.productBox.put(
+          productId, productModel.copyWith(sizeStocks: updatedStocks));
+    }
   }
 
   void _onRemoveProductFromCart(

@@ -21,6 +21,7 @@ class _ProductListPageState extends State<ProductListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   ProductSortOption _sortOption = ProductSortOption.name;
+  String? _selectedCategory;
 
   @override
   void initState() {
@@ -130,9 +131,45 @@ class _ProductListPageState extends State<ProductListPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                   const SizedBox(height: 6),
                   const Text('Tap the icon to open camera scanner',
                       style: TextStyle(fontSize: 12, color: Color(0xFF4C669A))),
+                  
+                  // Category Filter Chips
+                  const SizedBox(height: 16),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('All'),
+                          selected: _selectedCategory == null,
+                          onSelected: (selected) {
+                            if (selected) setState(() => _selectedCategory = null);
+                          },
+                          selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                          checkmarkColor: AppTheme.primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        ...state.products.map((p) => p.category).toSet().map((cat) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(cat),
+                              selected: _selectedCategory == cat,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _selectedCategory = selected ? cat : null;
+                                });
+                              },
+                              selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                              checkmarkColor: AppTheme.primaryColor,
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
                 ],
               );
             }),
@@ -172,9 +209,13 @@ class _ProductListPageState extends State<ProductListPage> {
                 }
 
                 final filteredProducts = state.products
-                    .where((product) =>
-                        product.name.toLowerCase().contains(_searchQuery) ||
-                        product.barcode.toLowerCase().contains(_searchQuery))
+                    .where((product) {
+                      final matchesSearch = product.name.toLowerCase().contains(_searchQuery) ||
+                          product.barcode.toLowerCase().contains(_searchQuery);
+                      final matchesCategory = _selectedCategory == null ||
+                          product.category == _selectedCategory;
+                      return matchesSearch && matchesCategory;
+                    })
                     .toList();
 
                 filteredProducts.sort((a, b) {

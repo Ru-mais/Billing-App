@@ -473,7 +473,8 @@ class _HomePageState extends State<HomePage> {
                               return ListTile(
                                 title: Text(option.name,
                                     style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text('Code: ${option.barcode} - ₹${option.price}'),
+                                subtitle: Text(
+                                    'Code: ${option.barcode} - ₹${option.price.toStringAsFixed(2)} (Buy: ₹${option.purchasedRate.toStringAsFixed(2)})'),
                                 onTap: () {
                                   onSelected(option);
                                 },

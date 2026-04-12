@@ -31,6 +31,7 @@ class _StockRow {
 class _ProductReportPageState extends State<ProductReportPage> {
   _StockSortMode _sortMode = _StockSortMode.lowToHigh;
   String _searchQuery = '';
+  String? _selectedCategory;
   final TextEditingController _searchCtrl = TextEditingController();
 
   @override
@@ -99,21 +100,33 @@ class _ProductReportPageState extends State<ProductReportPage> {
           // Flatten product × size into rows
           final List<_StockRow> rows = [];
           for (final product in state.products) {
-            if (product.sizeStocks.isEmpty) {
+            if (_selectedCategory != null && product.category != _selectedCategory) {
+              continue;
+            }
+            if (!product.isSizeSpecific) {
               rows.add(_StockRow(
                 productName: product.name,
                 barcode: product.barcode,
-                size: '—',
-                stock: 0,
+                size: 'Unified',
+                stock: product.baseStock,
               ));
             } else {
-              for (final entry in product.sizeStocks.entries) {
+              if (product.sizeStocks.isEmpty) {
                 rows.add(_StockRow(
                   productName: product.name,
                   barcode: product.barcode,
-                  size: entry.key,
-                  stock: entry.value,
+                  size: '—',
+                  stock: 0,
                 ));
+              } else {
+                for (final entry in product.sizeStocks.entries) {
+                  rows.add(_StockRow(
+                    productName: product.name,
+                    barcode: product.barcode,
+                    size: entry.key,
+                    stock: entry.value,
+                  ));
+                }
               }
             }
           }
@@ -152,6 +165,44 @@ class _ProductReportPageState extends State<ProductReportPage> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                   ),
                   onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+                ),
+              ),
+
+              // Category Filter Chips
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ChoiceChip(
+                        label: const Text('All'),
+                        selected: _selectedCategory == null,
+                        onSelected: (selected) {
+                          if (selected) setState(() => _selectedCategory = null);
+                        },
+                        selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        checkmarkColor: AppTheme.primaryColor,
+                      ),
+                      const SizedBox(width: 8),
+                      ...state.products.map((p) => p.category).toSet().map((cat) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(cat),
+                            selected: _selectedCategory == cat,
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedCategory = selected ? cat : null;
+                              });
+                            },
+                            selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                            checkmarkColor: AppTheme.primaryColor,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
 
