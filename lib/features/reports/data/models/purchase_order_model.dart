@@ -43,10 +43,18 @@ class PurchaseItemModel extends HiveObject {
   @HiveField(2)
   final double unitCost;
 
+  @HiveField(3)
+  final String? productId; // Link to existing product
+
+  @HiveField(4)
+  final String? size; // Specific size restocked
+
   PurchaseItemModel({
     required this.productName,
     required this.quantity,
     required this.unitCost,
+    this.productId,
+    this.size,
   });
 
   double get totalCost => quantity * unitCost;

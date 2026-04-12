@@ -88,6 +88,8 @@ class SyncManager {
             productName: i['productName'],
             quantity: i['quantity'],
             unitCost: (i['unitCost'] as num).toDouble(),
+            productId: i['productId'],
+            size: i['size'],
           )).toList(),
         );
         await HiveDatabase.purchaseOrdersBox.put(model.id, model);
@@ -129,6 +131,8 @@ class SyncManager {
           'productName': i.productName,
           'quantity': i.quantity,
           'unitCost': i.unitCost,
+          'productId': i.productId,
+          'size': i.size,
         }).toList(),
       });
     } catch (e) {

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/data/hive_database.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/purchase_order_model.dart';
+import '../../../product/data/models/product_model.dart';
 
 class AddPurchaseOrderPage extends StatefulWidget {
   const AddPurchaseOrderPage({super.key});
@@ -80,35 +81,175 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
 
     setState(() => _isSaving = true);
 
-    final purchaseItems = filledItems.map((row) => PurchaseItemModel(
+    try {
+      final List<PurchaseItemModel> purchaseItems = [];
+
+      for (final row in filledItems) {
+        final qty = int.parse(row.qtyController.text);
+        final cost = double.parse(row.costController.text);
+
+        // If it's a known product, we automatically update SIT (Stock in Trade)
+        if (row.productId != null) {
+          final product = HiveDatabase.productBox.get(row.productId);
+          if (product != null) {
+            ProductModel updatedProduct;
+
+            if (product.isSizeSpecific && row.selectedSize != null) {
+              // Restock specific size
+              final currentStock = product.sizeStocks[row.selectedSize] ?? 0;
+              final updatedStocks = Map<String, int>.from(product.sizeStocks);
+              updatedStocks[row.selectedSize!] = currentStock + qty;
+              
+              updatedProduct = product.copyWith(
+                sizeStocks: updatedStocks,
+                purchasedRate: cost, // Auto-update purchased rate
+              );
+            } else {
+              // Restock unified product
+              updatedProduct = product.copyWith(
+                baseStock: product.baseStock + qty,
+                purchasedRate: cost,
+              );
+            }
+
+            // Save and Sync updated product
+            await HiveDatabase.productBox.put(updatedProduct.id, updatedProduct);
+            SyncManager.pushProduct(updatedProduct);
+          }
+        }
+
+        purchaseItems.add(PurchaseItemModel(
           productName: row.nameController.text.trim(),
-          quantity: int.parse(row.qtyController.text),
-          unitCost: double.parse(row.costController.text),
-        )).toList();
+          quantity: qty,
+          unitCost: cost,
+          productId: row.productId,
+          size: row.selectedSize,
+        ));
+      }
 
-    final order = PurchaseOrderModel(
-      id: const Uuid().v4(),
-      timestamp: _selectedDate,
-      supplierName: _supplierController.text.trim(),
-      items: purchaseItems,
-      totalAmount: _calculatedTotal,
-      notes: _notesController.text.trim(),
-    );
+      final order = PurchaseOrderModel(
+        id: const Uuid().v4(),
+        timestamp: _selectedDate,
+        supplierName: _supplierController.text.trim(),
+        items: purchaseItems,
+        totalAmount: _calculatedTotal,
+        notes: _notesController.text.trim(),
+      );
 
-    await HiveDatabase.purchaseOrdersBox.add(order);
-    
-    // Sync Purchase Order to Cloud
-    SyncManager.pushPurchaseOrder(order);
+      await HiveDatabase.purchaseOrdersBox.add(order);
+      
+      // Sync Purchase Order to Cloud
+      SyncManager.pushPurchaseOrder(order);
 
-    setState(() => _isSaving = false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Purchase order saved successfully!'),
-        backgroundColor: Colors.green,
-      ));
-      context.pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Restock successful! Inventory levels updated.'),
+          backgroundColor: Colors.green,
+        ));
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Restock error: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  void _showQuickAddProductDialog(_ItemRow row) {
+    final name = row.nameController.text.trim();
+    final nameCtrl = TextEditingController(text: name);
+    final barcodeCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final rateCtrl = TextEditingController(text: row.costController.text);
+    String? selectedCategory;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
+        return AlertDialog(
+          title: const Text('Add New Product'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('This product is not in your list. Let\'s add it.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: _inputDec(label: 'Product Name', icon: Icons.abc),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: barcodeCtrl,
+                  decoration: _inputDec(label: 'Barcode', icon: Icons.qr_code),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  decoration: _inputDec(label: 'Category', icon: Icons.category),
+                  items: HiveDatabase.categoryBox.values
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (val) => selectedCategory = val,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: priceCtrl,
+                  decoration:
+                      _inputDec(label: 'Selling Price', icon: Icons.payments),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (selectedCategory == null ||
+                    priceCtrl.text.isEmpty ||
+                    nameCtrl.text.isEmpty) {
+                  return;
+                }
+                final newProduct = ProductModel(
+                  id: const Uuid().v4(),
+                  name: nameCtrl.text.trim(),
+                  barcode: barcodeCtrl.text.trim(),
+                  category: selectedCategory!,
+                  price: double.parse(priceCtrl.text),
+                  purchasedRate: double.tryParse(rateCtrl.text) ?? 0.0,
+                  sizeStocks: {},
+                  isSizeSpecific: true, // Default to size specific
+                  baseStock: 0,
+                );
+
+                await HiveDatabase.productBox.put(newProduct.id, newProduct);
+                SyncManager.pushProduct(newProduct);
+
+                setState(() {
+                  row.productId = newProduct.id;
+                  row.nameController.text = newProduct.name;
+                  if (newProduct.isSizeSpecific) {
+                    row.isSizeSpecific = true;
+                  }
+                });
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      }),
+    );
   }
 
   @override
@@ -208,16 +349,131 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            TextFormField(
-                              controller: row.nameController,
-                              decoration: _inputDec(
-                                  label: 'Product Name',
-                                  icon: Icons.inventory_2_outlined),
-                              textCapitalization: TextCapitalization.words,
+
+                            // ── Product Search ───────────────────────────────
+                            RawAutocomplete<ProductModel>(
+                              textEditingController: row.nameController,
+                              focusNode: FocusNode(),
+                              optionsBuilder: (TextEditingValue textValue) {
+                                if (textValue.text.isEmpty) {
+                                  return const Iterable<ProductModel>.empty();
+                                }
+                                return HiveDatabase.productBox.values.where(
+                                    (p) =>
+                                        p.name.toLowerCase().contains(
+                                            textValue.text.toLowerCase()) ||
+                                        p.barcode.contains(textValue.text));
+                              },
+                              displayStringForOption: (option) => option.name,
+                              onSelected: (option) {
+                                setState(() {
+                                  row.productId = option.id;
+                                  row.isSizeSpecific = option.isSizeSpecific;
+                                  row.costController.text =
+                                      option.purchasedRate.toString();
+                                });
+                              },
+                              fieldViewBuilder: (context, controller, focusNode,
+                                  onFieldSubmitted) {
+                                return TextFormField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  decoration: _inputDec(
+                                    label: 'Product Name',
+                                    icon: Icons.inventory_2_outlined,
+                                  ).copyWith(
+                                    suffixIcon: row.productId == null &&
+                                            row.nameController.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.add_business,
+                                                color: Colors.orange),
+                                            onPressed: () =>
+                                                _showQuickAddProductDialog(row),
+                                            tooltip: 'Create New Product',
+                                          )
+                                        : (row.productId != null
+                                            ? const Icon(Icons.verified,
+                                                color: Colors.green, size: 16)
+                                            : null),
+                                  ),
+                                  onChanged: (val) {
+                                    if (row.productId != null) {
+                                      setState(() {
+                                        row.productId = null;
+                                        row.selectedSize = null;
+                                      });
+                                    }
+                                  },
+                                );
+                              },
+                              optionsViewBuilder:
+                                  (context, onSelected, options) {
+                                return Align(
+                                  alignment: Alignment.topLeft,
+                                  child: Material(
+                                    elevation: 4,
+                                    child: SizedBox(
+                                      width: MediaQuery.of(context).size.width -
+                                          64,
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: options.length,
+                                        itemBuilder: (context, index) {
+                                          final option =
+                                              options.elementAt(index);
+                                          return ListTile(
+                                            title: Text(option.name),
+                                            subtitle: Text(
+                                                'Stock: ${option.isSizeSpecific ? 'Multi-size' : option.baseStock}'),
+                                            onTap: () => onSelected(option),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
+
                             const SizedBox(height: 12),
+
+                            // ── Size Toggle ───────────────────────────────
+                            SwitchListTile(
+                              title: const Text('Specify Sizes',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                              value: row.isSizeSpecific,
+                              onChanged: (val) =>
+                                  setState(() => row.isSizeSpecific = val),
+                              activeColor: AppTheme.primaryColor,
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+
+                            // ── Size & Qty & Cost ──────────────────────────
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if (row.isSizeSpecific)
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      value: row.selectedSize,
+                                      decoration: _inputDec(
+                                          label: 'Size', icon: Icons.straighten),
+                                      items: const [
+                                        '6', '7', '8', '9', '10', '11'
+                                      ].map((s) => DropdownMenuItem(
+                                          value: s, child: Text(s))).toList(),
+                                      onChanged: (val) =>
+                                          setState(() => row.selectedSize = val),
+                                      validator: (val) =>
+                                          (row.isSizeSpecific && val == null)
+                                              ? 'Pick size'
+                                              : null,
+                                    ),
+                                  ),
+                                if (row.isSizeSpecific) const SizedBox(width: 8),
                                 Expanded(
                                   child: TextFormField(
                                     controller: row.qtyController,
@@ -225,23 +481,32 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                                         label: 'Qty', icon: Icons.numbers),
                                     keyboardType: TextInputType.number,
                                     onChanged: (_) => setState(() {}),
+                                    validator: (val) => (val == null ||
+                                            int.tryParse(val) == null)
+                                        ? 'Error'
+                                        : null,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: TextFormField(
                                     controller: row.costController,
                                     decoration: _inputDec(
-                                        label: 'Unit Cost (₹)',
+                                        label: 'Cost',
                                         icon: Icons.currency_rupee),
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                             decimal: true),
                                     onChanged: (_) => setState(() {}),
+                                    validator: (val) => (val == null ||
+                                            double.tryParse(val) == null)
+                                        ? 'Error'
+                                        : null,
                                   ),
                                 ),
                               ],
                             ),
+
                             // Line total
                             Builder(builder: (_) {
                               final qty =
@@ -421,4 +686,7 @@ class _ItemRow {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController qtyController = TextEditingController();
   final TextEditingController costController = TextEditingController();
+  String? productId;
+  String? selectedSize;
+  bool isSizeSpecific = true;
 }
