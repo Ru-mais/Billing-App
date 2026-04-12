@@ -5,6 +5,8 @@ import '../../domain/entities/product.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../models/product_model.dart';
 
+import 'package:billo/core/utils/sync_manager.dart';
+
 class ProductRepositoryImpl implements ProductRepository {
   @override
   Future<Either<Failure, List<Product>>> getProducts() async {
@@ -35,9 +37,12 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, void>> addProduct(Product product) async {
     try {
       final box = HiveDatabase.productBox;
-      // You can use add() or put()
       final model = ProductModel.fromEntity(product);
-      await box.put(model.id, model); // Using ID as key
+      await box.put(model.id, model);
+      
+      // Sync to cloud
+      SyncManager.pushProduct(model);
+      
       return const Right(null);
     } catch (e) {
       return Left(CacheFailure(e.toString()));
@@ -50,6 +55,10 @@ class ProductRepositoryImpl implements ProductRepository {
       final box = HiveDatabase.productBox;
       final model = ProductModel.fromEntity(product);
       await box.put(model.id, model);
+      
+      // Sync to cloud
+      SyncManager.pushProduct(model);
+      
       return const Right(null);
     } catch (e) {
       return Left(CacheFailure(e.toString()));
@@ -61,6 +70,10 @@ class ProductRepositoryImpl implements ProductRepository {
     try {
       final box = HiveDatabase.productBox;
       await box.delete(id);
+      
+      // Sync to cloud
+      SyncManager.deleteProduct(id);
+      
       return const Right(null);
     } catch (e) {
       return Left(CacheFailure(e.toString()));

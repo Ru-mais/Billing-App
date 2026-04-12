@@ -1,9 +1,9 @@
-import 'package:billing_app/core/widgets/input_label.dart';
-import 'package:billing_app/core/widgets/primary_button.dart';
+import 'package:billo/core/widgets/input_label.dart';
+import 'package:billo/core/widgets/primary_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:billing_app/core/data/hive_database.dart';
+import 'package:billo/core/data/hive_database.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -11,6 +11,7 @@ import '../bloc/product_bloc.dart';
 import '../../domain/entities/product.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_validators.dart';
+import '../../../../core/utils/sync_manager.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -139,6 +140,10 @@ class _AddProductPageState extends State<AddProductPage> {
                   return;
                 }
                 HiveDatabase.categoryBox.add(name);
+                
+                // Sync Categories to Cloud
+                SyncManager.syncCategories();
+
                 setState(() => _selectedCategory = name);
                 context.pop();
               }

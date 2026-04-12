@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/utils/sync_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
@@ -95,6 +96,9 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     );
 
     await HiveDatabase.purchaseOrdersBox.add(order);
+    
+    // Sync Purchase Order to Cloud
+    SyncManager.pushPurchaseOrder(order);
 
     setState(() => _isSaving = false);
 

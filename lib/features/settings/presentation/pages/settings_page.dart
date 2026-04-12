@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/utils/sync_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../shop/presentation/bloc/shop_bloc.dart';
 import '../bloc/printer_bloc.dart';
@@ -49,8 +51,8 @@ class _SettingsPageState extends State<SettingsPage> {
               padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
               child: BlocBuilder<ShopBloc, ShopState>(
                 builder: (context, state) {
-                  String shopName = 'Elite Groceries';
-                  String initials = 'EG';
+                  String shopName = 'Billo';
+                  String initials = 'B';
                   if (state is ShopLoaded && state.shop.name.isNotEmpty) {
                     shopName = state.shop.name;
                     final parts = shopName.split(' ');
@@ -261,6 +263,54 @@ class _SettingsPageState extends State<SettingsPage> {
                     fontStyle: FontStyle.italic,
                     color: Colors.grey[500]),
               ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Cloud and Security Section
+            _buildSectionHeader('Cloud & Security'),
+            _buildListGroup(
+              children: [
+                _buildListItem(
+                  icon: Icons.cloud_sync,
+                  title: 'Refresh Cloud Data',
+                  subtitle: 'Download latest sales & stock updates',
+                  onTap: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Refreshing from cloud...')),
+                    );
+                    try {
+                      await SyncManager.pullAll();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Cloud data refreshed!'),
+                              backgroundColor: Colors.green),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Refresh failed: $e'),
+                              backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.logout,
+                  title: 'Logout',
+                  subtitle:
+                      'Sign out of ${Supabase.instance.client.auth.currentUser?.email ?? 'account'}',
+                  onTap: () async {
+                    await Supabase.instance.client.auth.signOut();
+                    if (mounted) context.go('/login');
+                  },
+                ),
+              ],
             ),
 
             const SizedBox(height: 48),

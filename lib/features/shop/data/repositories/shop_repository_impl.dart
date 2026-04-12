@@ -1,4 +1,5 @@
 import 'package:fpdart/fpdart.dart';
+import '../../../../core/utils/sync_manager.dart';
 import '../../../../core/data/hive_database.dart';
 import '../../../../core/error/failure.dart';
 import '../../domain/entities/shop.dart';
@@ -18,7 +19,7 @@ class ShopRepositoryImpl implements ShopRepository {
       } else {
         // Return default shop if not found
         return const Right(Shop(
-            name: 'Royal Footwear',
+            name: 'Billo',
             addressLine1: 'Sreekandapuram, Kannur',
             addressLine2: 'Kannur - 670593',
             phoneNumber: '',
@@ -36,6 +37,10 @@ class ShopRepositoryImpl implements ShopRepository {
       final box = HiveDatabase.shopBox;
       final model = ShopModel.fromEntity(shop);
       await box.put(shopKey, model);
+      
+      // Sync to cloud
+      SyncManager.pushShop(model);
+      
       return const Right(null);
     } catch (e) {
       return Left(CacheFailure(e.toString()));

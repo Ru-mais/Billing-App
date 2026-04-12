@@ -15,9 +15,45 @@ import '../../features/reports/presentation/pages/add_purchase_order_page.dart';
 import '../../features/reports/presentation/pages/daily_purchase_report_page.dart';
 import '../../features/reports/presentation/pages/monthly_purchase_report_page.dart';
 
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../features/auth/presentation/pages/sign_in_page.dart';
+
+class SupabaseAuthRepository extends ChangeNotifier {
+  SupabaseAuthRepository() {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      notifyListeners();
+    });
+  }
+}
+
+final authRepository = SupabaseAuthRepository();
+
 final router = GoRouter(
   initialLocation: '/',
+  refreshListenable: authRepository,
+  redirect: (context, state) async {
+    final session = Supabase.instance.client.auth.currentSession;
+    final isLoggingIn = state.uri.toString() == '/login';
+
+    if (session == null) {
+      return isLoggingIn ? null : '/login';
+    }
+
+    // Optional: You could add the is_paid check here for total security,
+    // but for now, we'll keep it simple to fix the navigation bug.
+    
+    if (isLoggingIn) {
+      return '/';
+    }
+
+    return null;
+  },
   routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const SignInPage(),
+    ),
     GoRoute(
       path: '/',
       builder: (context, state) => const HomePage(),

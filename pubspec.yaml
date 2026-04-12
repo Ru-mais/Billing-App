@@ -1,5 +1,5 @@
-name: billing_app
-description: Royal Footwears - Billing & Inventory Management
+name: billo
+description: billo - Shared Real-time Billing
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -46,6 +46,9 @@ dependencies:
   path_provider: ^2.1.5
   pdf: ^3.11.3
   printing: ^5.14.2
+  supabase_flutter: ^2.6.0
+  archive: ^3.6.1
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:

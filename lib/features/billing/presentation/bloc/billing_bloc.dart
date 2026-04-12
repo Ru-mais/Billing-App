@@ -1,13 +1,15 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/cart_item.dart';
-import 'package:billing_app/features/product/domain/entities/product.dart';
-import 'package:billing_app/features/product/domain/usecases/product_usecases.dart';
+import 'package:billo/features/product/domain/entities/product.dart';
+import 'package:billo/features/product/domain/usecases/product_usecases.dart';
 import '../../../../core/utils/printer_helper.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../../core/data/hive_database.dart';
-import 'package:billing_app/features/reports/data/models/sale_model.dart';
+import 'package:billo/features/reports/data/models/sale_model.dart';
+import 'package:billo/features/product/data/models/product_model.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/utils/sync_manager.dart';
 
 part 'billing_event.dart';
 part 'billing_state.dart';
@@ -101,8 +103,11 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       final currentStock = productModel.sizeStocks[size] ?? 0;
       final updatedStocks = Map<String, int>.from(productModel.sizeStocks);
       updatedStocks[size] = (currentStock - by).clamp(0, 999999);
-      HiveDatabase.productBox.put(
-          productId, productModel.copyWith(sizeStocks: updatedStocks));
+      final updatedProduct = productModel.copyWith(sizeStocks: updatedStocks);
+      HiveDatabase.productBox.put(productId, updatedProduct);
+      
+      // Sync Stock to Cloud
+      SyncManager.pushProduct(updatedProduct);
     }
   }
 
@@ -160,6 +165,9 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       );
       
       await HiveDatabase.salesBox.put(sale.id, sale);
+      
+      // Sync Sale to Cloud
+      SyncManager.pushSale(sale);
 
       // Deduct stock per size at checkout (sale finalization)
       for (final item in state.cartItems) {

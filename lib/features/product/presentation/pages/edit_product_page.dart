@@ -1,9 +1,9 @@
-import 'package:billing_app/core/widgets/input_label.dart';
-import 'package:billing_app/core/widgets/primary_button.dart';
+import 'package:billo/core/widgets/input_label.dart';
+import 'package:billo/core/widgets/primary_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:billing_app/core/data/hive_database.dart';
+import 'package:billo/core/data/hive_database.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../bloc/product_bloc.dart';

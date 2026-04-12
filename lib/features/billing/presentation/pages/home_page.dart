@@ -695,13 +695,14 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           color: isOutOfStock
-                              ? Colors.grey[100]
-                              : Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
+                              ? Colors.grey[50]
+                              : Theme.of(context).primaryColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isOutOfStock
-                                ? Colors.grey[300]!
-                                : Theme.of(context).primaryColor.withValues(alpha: 0.4),
+                                ? Colors.grey[200]!
+                                : Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                            width: 1.5,
                           ),
                         ),
                         child: Column(
@@ -709,11 +710,11 @@ class _HomePageState extends State<HomePage> {
                             Text(
                               entry.key,
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w900,
                                 fontSize: 18,
                                 color: isOutOfStock
-                                    ? Colors.grey[400]
-                                    : Theme.of(context).primaryColor,
+                                    ? Colors.grey[300]
+                                    : const Color(0xFF0F172A), // Slate-900 for maximum contrast
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -721,7 +722,8 @@ class _HomePageState extends State<HomePage> {
                               isOutOfStock ? 'Out' : 'Qty: ${entry.value}',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: isOutOfStock ? Colors.red[300] : Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                                color: isOutOfStock ? Colors.red[200] : const Color(0xFF64748B), // Slate-500
                               ),
                             ),
                           ],

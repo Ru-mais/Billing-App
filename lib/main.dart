@@ -9,16 +9,57 @@ import 'features/product/presentation/bloc/product_bloc.dart';
 import 'features/shop/presentation/bloc/shop_bloc.dart';
 import 'features/settings/presentation/bloc/printer_bloc.dart';
 import 'features/settings/presentation/bloc/printer_event.dart';
+import 'core/utils/sync_manager.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'core/utils/backup_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: 'https://xkjyopaxfppqhufqsgyg.supabase.co',
+    anonKey: 'sb_publishable_3PCOSTq7qaFy2wTjo6g6Aw_SpijUKHw',
+  );
+
   await HiveDatabase.init();
+  
+  // 2. Initial Cloud Pull (Auto-Restore)
+  // This ensures the device has the latest data from the shared account on startup
+  SyncManager.pullAll();
+  
   await di.init();
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      // Trigger auto-sync when app is minimized or closed
+      BackupHelper.autoSyncToCloud();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +76,7 @@ class MyApp extends StatelessWidget {
             create: (context) => di.sl<PrinterBloc>()..add(InitPrinterEvent())),
       ],
       child: MaterialApp.router(
-        title: 'Billing App',
+        title: 'billo',
         theme: AppTheme.lightTheme,
         routerConfig: router,
         debugShowCheckedModeBanner: false,

@@ -1,11 +1,11 @@
 {
-    "name": "billing_app",
-    "short_name": "billing_app",
+    "name": "billo",
+    "short_name": "billo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "billo - Shared Real-time Billing",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
