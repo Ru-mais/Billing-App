@@ -45,6 +45,22 @@ class UpdateQuantityEvent extends BillingEvent {
 
 class ClearCartEvent extends BillingEvent {}
 
+class ToggleDiscountEvent extends BillingEvent {
+  final bool enabled;
+  const ToggleDiscountEvent(this.enabled);
+
+  @override
+  List<Object> get props => [enabled];
+}
+
+class SetDiscountPercentEvent extends BillingEvent {
+  final double percent;
+  const SetDiscountPercentEvent(this.percent);
+
+  @override
+  List<Object> get props => [percent];
+}
+
 class PrintReceiptEvent extends BillingEvent {
   final String shopName;
   final String address1;

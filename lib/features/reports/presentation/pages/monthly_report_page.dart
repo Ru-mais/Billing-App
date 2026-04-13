@@ -7,7 +7,6 @@ import '../../data/models/purchase_order_model.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/pdf_helper.dart';
-import '../../../shop/data/models/shop_model.dart';
 import 'daily_report_page.dart';
 
 class MonthlyReportPage extends StatelessWidget {
@@ -74,7 +73,7 @@ class MonthlyReportPage extends StatelessWidget {
                       }
 
                       final shopBox = HiveDatabase.shopBox;
-                      final shopDetails = shopBox.get('shop_details') as ShopModel?;
+                      final shopDetails = shopBox.get('shop_details');
                       final shopName = shopDetails?.name ?? 'My Shop';
 
                       final monthStr = DateFormat('MMMM yyyy').format(now);

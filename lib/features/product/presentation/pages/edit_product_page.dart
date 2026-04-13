@@ -219,7 +219,7 @@ class _EditProductPageState extends State<EditProductPage> {
                             }
 
                             return DropdownButtonFormField<String>(
-                              value: _selectedCategory,
+                              initialValue: _selectedCategory,
                               decoration: const InputDecoration(
                                 hintText: 'Select Category',
                               ),
@@ -296,7 +296,7 @@ class _EditProductPageState extends State<EditProductPage> {
                         style: TextStyle(fontSize: 12)),
                     value: _isSizeSpecific,
                     onChanged: (val) => setState(() => _isSizeSpecific = val),
-                    activeColor: AppTheme.primaryColor,
+                    activeThumbColor: AppTheme.primaryColor,
                     contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 16),

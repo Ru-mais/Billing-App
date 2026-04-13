@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'backup_proxy_io.dart'
     if (dart.library.html) 'backup_proxy_web.dart';
 

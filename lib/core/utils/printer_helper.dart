@@ -106,10 +106,13 @@ class PrinterHelper {
 
   Future<void> printReceipt({
     required String shopName,
+    required String invoiceNo,
     required String address1,
     required String address2,
     required String phone,
     required List<Map<String, dynamic>> items, // Name, Qty, Price, Total
+    required double netAmount,
+    required double discountAmount,
     required double total,
     required String footer,
   }) async {
@@ -147,6 +150,8 @@ class PrinterHelper {
         DateFormat('dd-MM-yyyy hh:mm a').format(DateTime.now());
     bytes += _textToBytes(formattedDate);
     bytes += EscPos.lineFeed;
+    bytes += _textToBytes('Invoice: $invoiceNo');
+    bytes += EscPos.lineFeed;
 
     bytes += _textToBytes('--------------------------------');
     bytes += EscPos.lineFeed;
@@ -176,10 +181,15 @@ class PrinterHelper {
     bytes += _textToBytes('--------------------------------');
     bytes += EscPos.lineFeed;
 
-    // Total (Align Right)
+    // Totals (Align Right)
+    bytes += EscPos.alignRight;
+    bytes += _textToBytes('NET: ${netAmount.toStringAsFixed(2)}');
+    bytes += EscPos.lineFeed;
+    bytes += _textToBytes('DISCOUNT: -${discountAmount.toStringAsFixed(2)}');
+    bytes += EscPos.lineFeed;
     bytes += EscPos.alignRight;
     bytes += EscPos.boldOn;
-    bytes += _textToBytes('TOTAL: $total');
+    bytes += _textToBytes('TOTAL: ${total.toStringAsFixed(2)}');
     bytes += EscPos.lineFeed;
     bytes += EscPos.boldOff;
     bytes += EscPos.lineFeed;

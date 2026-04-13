@@ -7,10 +7,13 @@ import 'package:flutter/foundation.dart';
 class PdfHelper {
   static Future<void> generateAndShareReceipt({
     required String shopName,
+    required String invoiceNo,
     required String address1,
     required String address2,
     required String phone,
     required List<Map<String, dynamic>> items,
+    required double netAmount,
+    required double discountAmount,
     required double total,
     required String footer,
   }) async {
@@ -31,6 +34,7 @@ class PdfHelper {
               pw.SizedBox(height: 8),
               
               pw.Text(DateFormat('dd-MM-yyyy hh:mm a').format(DateTime.now()), style: const pw.TextStyle(fontSize: 12)),
+              pw.Text('Invoice: $invoiceNo', style: const pw.TextStyle(fontSize: 12)),
               pw.SizedBox(height: 8),
               
               pw.Divider(),
@@ -62,11 +66,27 @@ class PdfHelper {
                 
               pw.Divider(),
               
-              // Total
+              // Totals
               pw.Row(
-                 mainAxisAlignment: pw.MainAxisAlignment.end,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('NET AMOUNT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                  pw.Text(netAmount.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 11)),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('DISCOUNT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                  pw.Text('-${discountAmount.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 11)),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+              pw.Row(
+                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                  children: [
-                    pw.Text('TOTAL: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                    pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
                     pw.Text(total.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
                  ]
               ),
@@ -147,7 +167,7 @@ class PdfHelper {
             // Financial Summary Table
             pw.Text('FINANCIAL SUMMARY', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
             pw.SizedBox(height: 10),
-            pw.Table.fromTextArray(
+            pw.TableHelper.fromTextArray(
               headerDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
               headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
               cellAlignment: pw.Alignment.centerLeft,
@@ -168,7 +188,7 @@ class PdfHelper {
             if (topItems.isNotEmpty) ...[
               pw.Text('TOP PERFORMING PRODUCTS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
               pw.SizedBox(height: 10),
-              pw.Table.fromTextArray(
+              pw.TableHelper.fromTextArray(
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
                 cellStyle: const pw.TextStyle(fontSize: 9),
@@ -183,7 +203,7 @@ class PdfHelper {
             // Detailed Ledger
             pw.Text('TRANSACTION LEDGER', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
             pw.SizedBox(height: 12),
-            pw.Table.fromTextArray(
+            pw.TableHelper.fromTextArray(
               context: context,
               cellAlignment: pw.Alignment.centerLeft,
               headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
@@ -211,31 +231,6 @@ class PdfHelper {
       debugPrint('PDF layout error: $e');
       rethrow;
     }
-  }
-
-  static pw.Widget _buildSummaryCard(String title, double value, PdfColor bgColor, PdfColor textColor, {double? totalCash, double? totalQR}) {
-    return pw.Expanded(
-      child: pw.Container(
-        padding: const pw.EdgeInsets.all(12),
-        decoration: pw.BoxDecoration(
-          color: bgColor,
-          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-          border: pw.Border.all(color: textColor, width: 0.5),
-        ),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(title, style: pw.TextStyle(fontSize: 8, color: textColor, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 4),
-            pw.Text('Rs. ${value.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: textColor)),
-            if (totalCash != null && totalQR != null) ...[
-              pw.SizedBox(height: 4),
-            pw.Text('C: Rs. ${totalCash.toStringAsFixed(0)} | Q: Rs. ${totalQR.toStringAsFixed(0)}', style: pw.TextStyle(fontSize: 7, color: textColor)),
-            ]
-          ],
-        ),
-      ),
-    );
   }
 
   static Future<void> generateProductLabelPdf({
@@ -279,5 +274,101 @@ class PdfHelper {
       debugPrint('PDF layout error: $e');
       rethrow;
     }
+  }
+
+  static Future<void> generateSupplierAnalysisPdf({
+    required String supplierName,
+    required String phone,
+    required double openingBalance,
+    required double totalCredit,
+    required double totalPaid,
+    required double remainingBalance,
+    required List<Map<String, String>> bills,
+    required List<Map<String, String>> payments,
+  }) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) => [
+          pw.Text(
+            'Supplier Analysis',
+            style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text('Supplier: $supplierName',
+              style:
+                  pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          if (phone.isNotEmpty)
+            pw.Text('Phone: $phone', style: const pw.TextStyle(fontSize: 12)),
+          pw.Text(
+            'Generated: ${DateFormat('dd MMM yyyy hh:mm a').format(DateTime.now())}',
+            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+          ),
+          pw.SizedBox(height: 16),
+          pw.TableHelper.fromTextArray(
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            data: [
+              ['Metric', 'Amount (Rs.)'],
+              ['Opening Balance', openingBalance.toStringAsFixed(2)],
+              ['Total Credit (Bills)', totalCredit.toStringAsFixed(2)],
+              ['Total Paid', totalPaid.toStringAsFixed(2)],
+              ['Remaining', remainingBalance.toStringAsFixed(2)],
+            ],
+          ),
+          pw.SizedBox(height: 20),
+          pw.Text('Bills',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 8),
+          bills.isEmpty
+              ? pw.Text('No bills found.',
+                  style: const pw.TextStyle(color: PdfColors.grey))
+              : pw.TableHelper.fromTextArray(
+                  headerDecoration:
+                      const pw.BoxDecoration(color: PdfColors.grey100),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellStyle: const pw.TextStyle(fontSize: 10),
+                  data: [
+                    ['Date', 'Bill', 'Paid', 'Note'],
+                    ...bills.map((b) => [
+                          b['date'] ?? '',
+                          b['amount'] ?? '',
+                          b['paid'] ?? '',
+                          b['note'] ?? '',
+                        ]),
+                  ],
+                ),
+          pw.SizedBox(height: 20),
+          pw.Text('Payment History',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 8),
+          payments.isEmpty
+              ? pw.Text('No payments found.',
+                  style: const pw.TextStyle(color: PdfColors.grey))
+              : pw.TableHelper.fromTextArray(
+                  headerDecoration:
+                      const pw.BoxDecoration(color: PdfColors.grey100),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellStyle: const pw.TextStyle(fontSize: 10),
+                  data: [
+                    ['Date', 'Amount', 'Note'],
+                    ...payments.map((p) => [
+                          p['date'] ?? '',
+                          p['amount'] ?? '',
+                          p['note'] ?? '',
+                        ]),
+                  ],
+                ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+      name: 'supplier_analysis_${supplierName.replaceAll(' ', '_')}.pdf',
+    );
   }
 }

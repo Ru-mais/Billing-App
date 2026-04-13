@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/data/hive_database.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/pdf_helper.dart';
-import '../../../shop/data/models/shop_model.dart';
 import '../../data/models/purchase_order_model.dart';
 import 'daily_purchase_report_page.dart';
 
@@ -78,11 +77,14 @@ class _MonthlyPurchaseReportPageState
             dailyAggregates[day] = {
               'total': 0.0,
               'orders': 0,
-              'timestamp': order.timestamp
+              'timestamp': order.timestamp,
+              'suppliers': <String>{},
             };
           }
           dailyAggregates[day]!['total'] += order.totalAmount;
           dailyAggregates[day]!['orders'] += 1;
+          (dailyAggregates[day]!['suppliers'] as Set<String>)
+              .add(order.supplierName.isEmpty ? 'Unknown' : order.supplierName);
         }
         final sortedDays = dailyAggregates.keys.toList()
           ..sort((a, b) => b.compareTo(a));
@@ -119,7 +121,7 @@ class _MonthlyPurchaseReportPageState
                   }
                   final shopBox = HiveDatabase.shopBox;
                   final shopDetails =
-                      shopBox.get('shop_details') as ShopModel?;
+                      shopBox.get('shop_details');
                   final shopName = shopDetails?.name ?? 'My Shop';
 
                   final mappedTop = top3
@@ -127,10 +129,15 @@ class _MonthlyPurchaseReportPageState
 
                   final mappedTx = sortedDays.map((day) {
                     final agg = dailyAggregates[day]!;
+                    final suppliers = (agg['suppliers'] as Set<String>).toList();
+                    final supplierLabel = suppliers.isEmpty
+                        ? 'Unknown'
+                        : suppliers.take(3).join(', ');
                     return {
                       'time': DateFormat('dd MMM yyyy')
                           .format(agg['timestamp']),
-                      'items': '${agg['orders']} order(s)',
+                      'items':
+                          '${agg['orders']} order(s) • Suppliers: $supplierLabel',
                       'total':
                           (agg['total'] as double).toStringAsFixed(2),
                     };

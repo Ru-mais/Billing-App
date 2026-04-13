@@ -31,12 +31,15 @@ class _HomePageState extends State<HomePage> {
   final Map<String, DateTime> _lastScanTimes = {};
 
   final TextEditingController _manualCodeController = TextEditingController();
+  final TextEditingController _discountController =
+      TextEditingController(text: '0');
   final FocusNode _manualCodeFocusNode = FocusNode();
 
   @override
   void dispose() {
     _manualCodeFocusNode.dispose();
     _manualCodeController.dispose();
+    _discountController.dispose();
     _scannerController.dispose();
     super.dispose();
   }
@@ -116,16 +119,65 @@ class _HomePageState extends State<HomePage> {
       ),
       bottomSheet:
           BlocBuilder<BillingBloc, BillingState>(builder: (context, state) {
-        return PrimaryButton(
-          onPressed: state.cartItems.isEmpty
-              ? null
-              : () async {
-                  _scannerController.stop();
-                  await context.push('/checkout');
-                  if (_isCameraOn && mounted) _scannerController.start();
-                },
-          icon: Icons.payment,
-          label: 'Review Order',
+        if (_discountController.text !=
+            state.discountPercent.toStringAsFixed(0)) {
+          _discountController.text = state.discountPercent.toStringAsFixed(0);
+        }
+
+        return Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Enable Discount',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  Switch(
+                    value: state.discountEnabled,
+                    onChanged: (value) {
+                      context
+                          .read<BillingBloc>()
+                          .add(ToggleDiscountEvent(value));
+                    },
+                  ),
+                ],
+              ),
+              if (state.discountEnabled)
+                TextField(
+                  controller: _discountController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Discount %',
+                    hintText: 'Enter discount percentage',
+                    prefixIcon: Icon(Icons.percent),
+                  ),
+                  onChanged: (value) {
+                    final parsed = double.tryParse(value) ?? 0;
+                    context
+                        .read<BillingBloc>()
+                        .add(SetDiscountPercentEvent(parsed));
+                  },
+                ),
+              const SizedBox(height: 8),
+              PrimaryButton(
+                onPressed: state.cartItems.isEmpty
+                    ? null
+                    : () async {
+                        _scannerController.stop();
+                        await context.push('/checkout');
+                        if (_isCameraOn && mounted) _scannerController.start();
+                      },
+                icon: Icons.payment,
+                label: 'Review Order',
+              ),
+            ],
+          ),
         );
       }),
     );
@@ -652,89 +704,95 @@ class _HomePageState extends State<HomePage> {
     final sizeEntries = (product.sizeStocks as Map<String, int>).entries.toList();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      showModalBottomSheet(
+      showDialog<void>(
         context: context,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (sheetCtx) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (dialogCtx) {
+          return AlertDialog(
+            title: Row(
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.straighten, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Select Size — ${product.name}',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                const Icon(Icons.straighten, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Select Size - ${product.name}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: sizeEntries.map((entry) {
-                    final isOutOfStock = entry.value <= 0;
-                    return GestureDetector(
-                      onTap: isOutOfStock
-                          ? null
-                          : () {
-                              Navigator.pop(sheetCtx);
-                              context.read<BillingBloc>()
-                                  .add(SizeSelectedEvent(entry.key));
-                            },
-                      child: Container(
-                        width: 72,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isOutOfStock
-                              ? Colors.grey[50]
-                              : Theme.of(context).primaryColor.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isOutOfStock
-                                ? Colors.grey[200]!
-                                : Theme.of(context).primaryColor.withValues(alpha: 0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              entry.key,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
-                                color: isOutOfStock
-                                    ? Colors.grey[300]
-                                    : const Color(0xFF0F172A), // Slate-900 for maximum contrast
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              isOutOfStock ? 'Out' : 'Qty: ${entry.value}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isOutOfStock ? Colors.red[200] : const Color(0xFF64748B), // Slate-500
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 8),
               ],
             ),
+            content: SingleChildScrollView(
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: sizeEntries.map((entry) {
+                  final isOutOfStock = entry.value <= 0;
+                  return GestureDetector(
+                    onTap: isOutOfStock
+                        ? null
+                        : () {
+                            Navigator.pop(dialogCtx);
+                            context
+                                .read<BillingBloc>()
+                                .add(SizeSelectedEvent(entry.key));
+                          },
+                    child: Container(
+                      width: 72,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isOutOfStock
+                            ? Colors.grey[50]
+                            : Theme.of(context)
+                                .primaryColor
+                                .withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isOutOfStock
+                              ? Colors.grey[200]!
+                              : Theme.of(context)
+                                  .primaryColor
+                                  .withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            entry.key,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              color: isOutOfStock
+                                  ? Colors.grey[300]
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isOutOfStock ? 'Out' : 'Qty: ${entry.value}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isOutOfStock
+                                  ? Colors.red[200]
+                                  : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancel'),
+              ),
+            ],
           );
         },
       ).then((_) {

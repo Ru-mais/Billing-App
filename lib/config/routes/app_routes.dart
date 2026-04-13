@@ -14,6 +14,7 @@ import '../../features/reports/presentation/pages/product_report_page.dart';
 import '../../features/reports/presentation/pages/add_purchase_order_page.dart';
 import '../../features/reports/presentation/pages/daily_purchase_report_page.dart';
 import '../../features/reports/presentation/pages/monthly_purchase_report_page.dart';
+import '../../features/settings/presentation/pages/supplier_ledger_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -95,6 +96,10 @@ final router = GoRouter(
     GoRoute(
       path: '/monthly_purchase_report',
       builder: (context, state) => const MonthlyPurchaseReportPage(),
+    ),
+    GoRoute(
+      path: '/supplier_ledger',
+      builder: (context, state) => const SupplierLedgerPage(),
     ),
     GoRoute(
       path: '/products',

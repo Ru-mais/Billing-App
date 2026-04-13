@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/data/hive_database.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/pdf_helper.dart';
-import '../../../shop/data/models/shop_model.dart';
 import '../../data/models/purchase_order_model.dart';
 
 class DailyPurchaseReportPage extends StatefulWidget {
@@ -21,11 +20,19 @@ class DailyPurchaseReportPage extends StatefulWidget {
 
 class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
   late DateTime _date;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _date = widget.targetDate ?? DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -44,13 +51,19 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
               order.timestamp.day == _date.day;
         }).toList()
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        final filteredOrders = dayOrders.where((order) {
+          final q = _query.trim().toLowerCase();
+          if (q.isEmpty) return true;
+          if (order.supplierName.toLowerCase().contains(q)) return true;
+          if (order.notes.toLowerCase().contains(q)) return true;
+          return order.items
+              .any((item) => item.productName.toLowerCase().contains(q));
+        }).toList();
 
-        final dateLabel = isToday
-            ? 'Today'
-            : DateFormat('dd MMM yyyy').format(_date);
+        final dateLabel =
+            isToday ? 'Today' : DateFormat('dd MMM yyyy').format(_date);
 
-        final totalSpend =
-            dayOrders.fold(0.0, (sum, o) => sum + o.totalAmount);
+        final totalSpend = dayOrders.fold(0.0, (sum, o) => sum + o.totalAmount);
         final totalItems = dayOrders.fold(
             0, (sum, o) => sum + o.items.fold(0, (s, i) => s + i.quantity));
 
@@ -71,7 +84,8 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
             actions: [
               // Date picker
               IconButton(
-                icon: const Icon(Icons.calendar_month, color: AppTheme.primaryColor),
+                icon: const Icon(Icons.calendar_month,
+                    color: AppTheme.primaryColor),
                 onPressed: () async {
                   final picked = await showDatePicker(
                     context: context,
@@ -96,8 +110,7 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                     return;
                   }
                   final shopBox = HiveDatabase.shopBox;
-                  final shopDetails =
-                      shopBox.get('shop_details') as ShopModel?;
+                  final shopDetails = shopBox.get('shop_details');
                   final shopName = shopDetails?.name ?? 'My Shop';
                   final dateStr = DateFormat('dd-MM-yyyy').format(_date);
 
@@ -111,15 +124,19 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                   }
                   final topItems = itemQtys.entries.toList()
                     ..sort((a, b) => b.value.compareTo(a.value));
-                  final mappedTop = topItems.take(5).map((e) =>
-                      {'name': e.key, 'qty': e.value}).toList();
+                  final mappedTop = topItems
+                      .take(5)
+                      .map((e) => {'name': e.key, 'qty': e.value})
+                      .toList();
 
-                  final mappedTx = dayOrders.map((o) => {
-                        'time': DateFormat('hh:mm a').format(o.timestamp),
-                        'items':
-                            '${o.items.length} item(s) from ${o.supplierName}',
-                        'total': o.totalAmount.toStringAsFixed(2),
-                      }).toList();
+                  final mappedTx = dayOrders
+                      .map((o) => {
+                            'time': DateFormat('hh:mm a').format(o.timestamp),
+                            'items':
+                                '${o.items.length} item(s) • Supplier: ${o.supplierName.isEmpty ? 'Unknown' : o.supplierName}',
+                            'total': o.totalAmount.toStringAsFixed(2),
+                          })
+                      .toList();
 
                   try {
                     await PdfHelper.generateReportSummaryPdf(
@@ -174,7 +191,9 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                     Column(
                       children: [
                         Text(
-                          isToday ? 'TODAY\'S PURCHASES' : '${dateLabel.toUpperCase()} PURCHASES',
+                          isToday
+                              ? 'TODAY\'S PURCHASES'
+                              : '${dateLabel.toUpperCase()} PURCHASES',
                           style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 10,
@@ -227,10 +246,22 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                           letterSpacing: 1.2)),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Search supplier or item',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              ),
+              const SizedBox(height: 8),
 
               // ── Orders list ───────────────────────────────────────────
               Expanded(
-                child: dayOrders.isEmpty
+                child: filteredOrders.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -239,7 +270,9 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                                 size: 64, color: Colors.grey[300]),
                             const SizedBox(height: 16),
                             Text(
-                              'No purchases recorded for $dateLabel.',
+                              _query.trim().isEmpty
+                                  ? 'No purchases recorded for $dateLabel.'
+                                  : 'No purchases found for current filter.',
                               style: const TextStyle(color: Colors.grey),
                             ),
                           ],
@@ -247,9 +280,9 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.only(bottom: 32),
-                        itemCount: dayOrders.length,
+                        itemCount: filteredOrders.length,
                         itemBuilder: (context, index) {
-                          final order = dayOrders[index];
+                          final order = filteredOrders[index];
                           return _PurchaseOrderTile(order: order);
                         },
                       ),
@@ -303,8 +336,7 @@ class _PurchaseOrderTile extends StatelessWidget {
               fontSize: 15,
               color: Color(0xFF2E7D32)),
         ),
-        childrenPadding:
-            const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+        childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
         expandedCrossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Divider(),
@@ -315,13 +347,11 @@ class _PurchaseOrderTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(item.productName,
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w500)),
+                          style: const TextStyle(fontWeight: FontWeight.w500)),
                     ),
                     Text(
                       '${item.quantity} × ₹${item.unitCost.toStringAsFixed(2)} = ₹${item.totalCost.toStringAsFixed(2)}',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey[600]),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -334,8 +364,8 @@ class _PurchaseOrderTile extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                     child: Text(order.notes,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey[600]))),
+                        style:
+                            TextStyle(fontSize: 12, color: Colors.grey[600]))),
               ],
             ),
           ],

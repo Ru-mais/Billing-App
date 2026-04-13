@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/sync_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class SignInPage extends StatefulWidget {
@@ -32,6 +33,7 @@ class _SignInPageState extends State<SignInPage> {
             .single();
 
         if (profile['is_paid'] == true) {
+          await SyncManager.pullAll();
           if (mounted) context.go('/');
         } else {
           await Supabase.instance.client.auth.signOut();

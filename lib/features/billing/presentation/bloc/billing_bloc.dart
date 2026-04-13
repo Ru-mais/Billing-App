@@ -7,7 +7,6 @@ import '../../../../core/utils/printer_helper.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../../core/data/hive_database.dart';
 import 'package:billo/features/reports/data/models/sale_model.dart';
-import 'package:billo/features/product/data/models/product_model.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/utils/sync_manager.dart';
 
@@ -25,6 +24,8 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     on<RemoveProductFromCartEvent>(_onRemoveProductFromCart);
     on<UpdateQuantityEvent>(_onUpdateQuantity);
     on<ClearCartEvent>(_onClearCart);
+    on<ToggleDiscountEvent>(_onToggleDiscount);
+    on<SetDiscountPercentEvent>(_onSetDiscountPercent);
     on<PrintReceiptEvent>(_onPrintReceipt);
   }
 
@@ -139,6 +140,17 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     emit(const BillingState());
   }
 
+  void _onToggleDiscount(
+      ToggleDiscountEvent event, Emitter<BillingState> emit) {
+    emit(state.copyWith(discountEnabled: event.enabled));
+  }
+
+  void _onSetDiscountPercent(
+      SetDiscountPercentEvent event, Emitter<BillingState> emit) {
+    final safePercent = event.percent.clamp(0, 100).toDouble();
+    emit(state.copyWith(discountPercent: safePercent));
+  }
+
   Future<void> _onPrintReceipt(
       PrintReceiptEvent event, Emitter<BillingState> emit) async {
     if (state.cartItems.isEmpty) return;
@@ -205,10 +217,13 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
          // Generate PDF
          await PdfHelper.generateAndShareReceipt(
             shopName: event.shopName,
+            invoiceNo: saleId.substring(0, 8).toUpperCase(),
             address1: event.address1,
             address2: event.address2,
             phone: event.phone,
             items: itemsMapList,
+            netAmount: state.netAmount,
+            discountAmount: state.discountAmount,
             total: state.totalAmount,
             footer: event.footer,
          );
@@ -216,10 +231,13 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
          // Thermal Print
          await printerHelper.printReceipt(
             shopName: event.shopName,
+            invoiceNo: saleId.substring(0, 8).toUpperCase(),
             address1: event.address1,
             address2: event.address2,
             phone: event.phone,
             items: itemsMapList,
+            netAmount: state.netAmount,
+            discountAmount: state.discountAmount,
             total: state.totalAmount,
             footer: event.footer
          );

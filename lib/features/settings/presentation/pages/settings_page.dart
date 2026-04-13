@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/utils/sync_manager.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -19,6 +20,24 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  Future<void> _forceSyncNow() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Syncing with cloud...')),
+    );
+    await SyncManager.pullAll();
+    final health = SyncManager.syncHealthNotifier.value;
+    if (!mounted) return;
+    final isSuccess = health.status == 'success' || health.status == 'degraded';
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+            health.message ?? (isSuccess ? 'Sync complete' : 'Sync failed')),
+        backgroundColor: isSuccess ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -115,6 +134,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Shop Details',
                   subtitle: 'Edit business info & address',
                   onTap: () => context.push('/shop'),
+                ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.groups_2_outlined,
+                  title: 'Supplier',
+                  subtitle: 'Manage supplier balance, credit and dues',
+                  onTap: () => context.push('/supplier_ledger'),
                 ),
                 _buildDivider(),
                 _buildListItem(
@@ -269,48 +295,58 @@ class _SettingsPageState extends State<SettingsPage> {
 
             // Cloud and Security Section
             _buildSectionHeader('Cloud & Security'),
-            _buildListGroup(
-              children: [
-                _buildListItem(
-                  icon: Icons.cloud_sync,
-                  title: 'Refresh Cloud Data',
-                  subtitle: 'Download latest sales & stock updates',
-                  onTap: () async {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Refreshing from cloud...')),
-                    );
-                    try {
-                      await SyncManager.pullAll();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Cloud data refreshed!'),
-                              backgroundColor: Colors.green),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Refresh failed: $e'),
-                              backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.logout,
-                  title: 'Logout',
-                  subtitle:
-                      'Sign out of ${Supabase.instance.client.auth.currentUser?.email ?? 'account'}',
-                  onTap: () async {
-                    await Supabase.instance.client.auth.signOut();
-                    if (mounted) context.go('/login');
-                  },
-                ),
-              ],
+            ValueListenableBuilder<SyncHealth>(
+              valueListenable: SyncManager.syncHealthNotifier,
+              builder: (context, health, _) {
+                final lastSyncText = health.lastSyncAt == null
+                    ? 'Not synced yet'
+                    : DateFormat('dd MMM yyyy, hh:mm a')
+                        .format(health.lastSyncAt!);
+                final statusText = health.status.toUpperCase();
+
+                return Column(
+                  children: [
+                    _buildListGroup(
+                      children: [
+                        _buildListItem(
+                          icon: Icons.cloud_done_outlined,
+                          title: 'Last Sync',
+                          subtitle: '$lastSyncText • $statusText',
+                          trailingIcon: null,
+                        ),
+                        _buildDivider(),
+                        _buildListItem(
+                          icon: Icons.sync,
+                          title: 'Force Sync Now',
+                          subtitle:
+                              'Pull latest sales, stock and supplier data',
+                          onTap: _forceSyncNow,
+                        ),
+                        if (health.missingTables.isNotEmpty) ...[
+                          _buildDivider(),
+                          _buildListItem(
+                            icon: Icons.warning_amber_outlined,
+                            title: 'Missing Cloud Tables',
+                            subtitle: health.missingTables.join(', '),
+                            trailingIcon: null,
+                          ),
+                        ],
+                        _buildDivider(),
+                        _buildListItem(
+                          icon: Icons.logout,
+                          title: 'Logout',
+                          subtitle:
+                              'Sign out of ${Supabase.instance.client.auth.currentUser?.email ?? 'account'}',
+                          onTap: () async {
+                            await Supabase.instance.client.auth.signOut();
+                            if (context.mounted) context.go('/login');
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 48),

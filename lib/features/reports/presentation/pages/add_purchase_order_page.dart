@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/data/hive_database.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/supplier_store.dart';
 import '../../data/models/purchase_order_model.dart';
 import '../../../product/data/models/product_model.dart';
 
@@ -18,8 +19,10 @@ class AddPurchaseOrderPage extends StatefulWidget {
 class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   final _formKey = GlobalKey<FormState>();
   final _supplierController = TextEditingController();
+  final _paidAmountController = TextEditingController(text: '0');
   final _notesController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
+  List<SupplierModel> _suppliers = [];
 
   final List<_ItemRow> _items = [];
   bool _isSaving = false;
@@ -27,6 +30,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   @override
   void initState() {
     super.initState();
+    _suppliers = SupplierStore.getAll();
     _addItem(); // Start with one empty row
   }
 
@@ -64,6 +68,14 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final paidAmount = double.tryParse(_paidAmountController.text.trim()) ?? 0;
+    if (paidAmount < 0 || paidAmount > _calculatedTotal) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Paid amount must be between 0 and total amount.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
 
     // Validate at least one item is filled
     final filledItems = _items.where((row) =>
@@ -137,6 +149,14 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
       );
 
       await HiveDatabase.purchaseOrdersBox.add(order);
+
+      await SupplierStore.addPurchaseBill(
+        supplierName: _supplierController.text.trim(),
+        billAmount: _calculatedTotal,
+        paidAmount: paidAmount,
+        date: _selectedDate,
+        note: 'Purchase Order',
+      );
       
       // Sync Purchase Order to Cloud
       SyncManager.pushPurchaseOrder(order);
@@ -196,7 +216,60 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                   items: HiveDatabase.categoryBox.values
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
+                  initialValue: selectedCategory,
                   onChanged: (val) => selectedCategory = val,
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      final newCategoryCtrl = TextEditingController();
+                      final created = await showDialog<String>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Create Category'),
+                          content: TextField(
+                            controller: newCategoryCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              hintText: 'Enter category name',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                final value = newCategoryCtrl.text.trim();
+                                if (value.isEmpty) return;
+                                Navigator.pop(ctx, value);
+                              },
+                              child: const Text('Create'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (created == null || created.trim().isEmpty) return;
+                      final newCategory = created.trim();
+                      final alreadyExists = HiveDatabase.categoryBox.values.any(
+                        (c) => c.toLowerCase() == newCategory.toLowerCase(),
+                      );
+                      if (!alreadyExists) {
+                        await HiveDatabase.categoryBox.add(newCategory);
+                      }
+                      setDialogState(() {
+                        selectedCategory = HiveDatabase.categoryBox.values.firstWhere(
+                          (c) => c.toLowerCase() == newCategory.toLowerCase(),
+                          orElse: () => newCategory,
+                        );
+                      });
+                    },
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Create category'),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -219,6 +292,26 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                     priceCtrl.text.isEmpty ||
                     nameCtrl.text.isEmpty) {
                   return;
+                }
+                final newBarcode = barcodeCtrl.text.trim();
+                if (newBarcode.isNotEmpty) {
+                  final barcodeExists = HiveDatabase.productBox.values.any(
+                    (product) =>
+                        product.barcode.trim().isNotEmpty &&
+                        product.barcode.trim().toLowerCase() ==
+                            newBarcode.toLowerCase(),
+                  );
+                  if (barcodeExists) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Barcode already exists. Please use a different barcode.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
                 }
                 final newProduct = ProductModel(
                   id: const Uuid().v4(),
@@ -284,16 +377,60 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                     _card(
                       child: Column(
                         children: [
-                          TextFormField(
-                            controller: _supplierController,
-                            decoration: _inputDec(
-                              label: 'Supplier Name',
-                              icon: Icons.store_outlined,
-                            ),
-                            textCapitalization: TextCapitalization.words,
-                            validator: (v) => (v == null || v.trim().isEmpty)
-                                ? 'Enter supplier name'
-                                : null,
+                          RawAutocomplete<String>(
+                            textEditingController: _supplierController,
+                            focusNode: FocusNode(),
+                            optionsBuilder: (textValue) {
+                              final query = textValue.text.trim().toLowerCase();
+                              if (query.isEmpty) return const Iterable<String>.empty();
+                              return _suppliers
+                                  .map((item) => item.name)
+                                  .where((name) =>
+                                      name.toLowerCase().contains(query))
+                                  .toSet()
+                                  .toList();
+                            },
+                            onSelected: (value) {
+                              _supplierController.text = value;
+                            },
+                            fieldViewBuilder: (context, controller, focusNode, _) {
+                              return TextFormField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: _inputDec(
+                                  label: 'Supplier Name',
+                                  icon: Icons.store_outlined,
+                                ),
+                                textCapitalization: TextCapitalization.words,
+                                validator: (v) => (v == null || v.trim().isEmpty)
+                                    ? 'Enter supplier name'
+                                    : null,
+                              );
+                            },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 4,
+                                  child: SizedBox(
+                                    width: MediaQuery.of(context).size.width - 64,
+                                    child: ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      shrinkWrap: true,
+                                      itemCount: options.length,
+                                      itemBuilder: (context, index) {
+                                        final option = options.elementAt(index);
+                                        return ListTile(
+                                          dense: true,
+                                          title: Text(option),
+                                          onTap: () => onSelected(option),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 16),
                           InkWell(
@@ -311,6 +448,27 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                                 style: const TextStyle(fontSize: 14),
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _paidAmountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: _inputDec(
+                              label: 'Paid Amount (optional)',
+                              icon: Icons.account_balance_outlined,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return null;
+                              }
+                              final parsed = double.tryParse(value);
+                              if (parsed == null || parsed < 0) {
+                                return 'Enter valid paid amount';
+                              }
+                              return null;
+                            },
                           ),
                         ],
                       ),
@@ -446,7 +604,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                               value: row.isSizeSpecific,
                               onChanged: (val) =>
                                   setState(() => row.isSizeSpecific = val),
-                              activeColor: AppTheme.primaryColor,
+                              activeThumbColor: AppTheme.primaryColor,
                               contentPadding: EdgeInsets.zero,
                               dense: true,
                             ),
@@ -458,7 +616,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                                 if (row.isSizeSpecific)
                                   Expanded(
                                     child: DropdownButtonFormField<String>(
-                                      value: row.selectedSize,
+                                      initialValue: row.selectedSize,
                                       decoration: _inputDec(
                                           label: 'Size', icon: Icons.straighten),
                                       items: const [

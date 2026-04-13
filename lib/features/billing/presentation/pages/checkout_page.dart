@@ -18,6 +18,34 @@ class CheckoutPage extends StatefulWidget {
 class _CheckoutPageState extends State<CheckoutPage> {
   String _selectedPaymentMethod = 'Cash';
 
+  Future<void> _cancelBill() async {
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Cancel Bill'),
+        content: const Text(
+          'Are you sure you want to cancel this bill? All current cart items will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child:
+                const Text('Yes, Cancel', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldCancel == true && mounted) {
+      context.read<BillingBloc>().add(ClearCartEvent());
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const borderColor = Color(0xFFE5E5EA);
@@ -26,8 +54,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         canPop: false,
         onPopInvokedWithResult: (bool didPop, dynamic result) {
           if (didPop) return;
-          context.read<BillingBloc>().add(ClearCartEvent());
-          context.go('/');
+          _cancelBill();
         },
         child: Scaffold(
           appBar: AppBar(
@@ -40,8 +67,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
               icon: Icon(Icons.chevron_left,
                   size: 28, color: Theme.of(context).primaryColor),
               onPressed: () {
-                context.read<BillingBloc>().add(ClearCartEvent());
-                context.go('/');
+                _cancelBill();
               },
             ),
           ),
@@ -51,8 +77,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                     content: Text('Printed successfully'),
                     backgroundColor: Colors.green));
-                // context.read<BillingBloc>().add(ClearCartEvent());
-                // context.go('/');
+                context.read<BillingBloc>().add(ClearCartEvent());
+                context.go('/');
+              } else if (state.error != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.error!),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             builder: (context, billingState) {
@@ -64,6 +97,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 if (shopState is ShopLoaded) {
                   upiId = shopState.shop.upiId;
                   shopName = shopState.shop.name;
+                }
+
+                if (billingState.cartItems.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No items in cart. Add items before checkout.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
                 }
 
                 return Column(
@@ -203,7 +245,57 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      'GRAND TOTAL',
+                                      'NET AMOUNT',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey[400],
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                    Text(
+                                      '₹${billingState.netAmount.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.5,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'DISCOUNT (${billingState.discountEnabled ? billingState.discountPercent.toStringAsFixed(0) : '0'}%)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey[400],
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                    Text(
+                                      '- ₹${billingState.discountAmount.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.3,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'TOTAL',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -227,24 +319,39 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   width: double.infinity,
                                   child: SegmentedButton<String>(
                                     segments: const [
-                                      ButtonSegment<String>(value: 'Cash', label: Text('Cash', style: TextStyle(fontWeight: FontWeight.bold)), icon: Icon(Icons.money)),
-                                      ButtonSegment<String>(value: 'QR', label: Text('QR / UPI', style: TextStyle(fontWeight: FontWeight.bold)), icon: Icon(Icons.qr_code_scanner)),
+                                      ButtonSegment<String>(
+                                          value: 'Cash',
+                                          label: Text('Cash',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold)),
+                                          icon: Icon(Icons.money)),
+                                      ButtonSegment<String>(
+                                          value: 'QR',
+                                          label: Text('QR / UPI',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold)),
+                                          icon: Icon(Icons.qr_code_scanner)),
                                     ],
                                     selected: {_selectedPaymentMethod},
-                                    onSelectionChanged: (Set<String> newSelection) {
+                                    onSelectionChanged:
+                                        (Set<String> newSelection) {
                                       setState(() {
-                                        _selectedPaymentMethod = newSelection.first;
+                                        _selectedPaymentMethod =
+                                            newSelection.first;
                                       });
                                     },
                                     style: ButtonStyle(
-                                       backgroundColor: WidgetStateProperty.resolveWith<Color>(
-                                          (Set<WidgetState> states) {
-                                            if (states.contains(WidgetState.selected)) {
-                                              return AppTheme.primaryColor.withValues(alpha: 0.1);
-                                            }
-                                            return Colors.transparent;
-                                          },
-                                       ),
+                                      backgroundColor: WidgetStateProperty
+                                          .resolveWith<Color>(
+                                        (Set<WidgetState> states) {
+                                          if (states
+                                              .contains(WidgetState.selected)) {
+                                            return AppTheme.primaryColor
+                                                .withValues(alpha: 0.1);
+                                          }
+                                          return Colors.transparent;
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -252,28 +359,65 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               ],
                             ),
                           ),
-                          PrimaryButton(
-                            onPressed: () {
-                              if (shopState is ShopLoaded) {
-                                context.read<BillingBloc>().add(
-                                    PrintReceiptEvent(
-                                        shopName: shopState.shop.name,
-                                        address1: shopState.shop.addressLine1,
-                                        address2: shopState.shop.addressLine2,
-                                        phone: shopState.shop.phoneNumber,
-                                        footer: shopState.shop.footerText,
-                                        paymentMethod: _selectedPaymentMethod));
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content:
-                                            Text('Shop details not loaded'),
-                                        backgroundColor: Colors.red));
-                              }
-                            },
-                            label: 'Print Receipt',
-                            icon: Icons.print,
-                            isLoading: billingState.isPrinting,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: billingState.isPrinting
+                                        ? null
+                                        : _cancelBill,
+                                    icon: const Icon(Icons.close),
+                                    label: const Text(
+                                      'Cancel Bill',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red),
+                                      minimumSize: const Size.fromHeight(52),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: PrimaryButton(
+                                    onPressed: () {
+                                      if (shopState is ShopLoaded) {
+                                        context.read<BillingBloc>().add(
+                                            PrintReceiptEvent(
+                                                shopName: shopState.shop.name,
+                                                address1:
+                                                    shopState.shop.addressLine1,
+                                                address2:
+                                                    shopState.shop.addressLine2,
+                                                phone:
+                                                    shopState.shop.phoneNumber,
+                                                footer:
+                                                    shopState.shop.footerText,
+                                                paymentMethod:
+                                                    _selectedPaymentMethod));
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Shop details not loaded'),
+                                                backgroundColor: Colors.red));
+                                      }
+                                    },
+                                    label: 'Print Receipt',
+                                    icon: Icons.print,
+                                    isLoading: billingState.isPrinting,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
