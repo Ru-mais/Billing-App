@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:billo/core/widgets/input_label.dart';
 import 'package:billo/core/widgets/primary_button.dart';
 import 'package:flutter/material.dart';
@@ -57,6 +58,25 @@ class _AddProductPageState extends State<AddProductPage> {
     if (result != null && result.isNotEmpty) {
       setState(() => _barcode = result);
     }
+  }
+
+  String _generateBarcode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = Random();
+    return List.generate(
+            9, (index) => chars[random.nextInt(chars.length)])
+        .join();
+  }
+
+  void _generateUniqueBarcode() {
+    String newBarcode;
+    bool exists;
+    final products = context.read<ProductBloc>().state.products;
+    do {
+      newBarcode = _generateBarcode();
+      exists = products.any((p) => p.barcode == newBarcode);
+    } while (exists);
+    setState(() => _barcode = newBarcode);
   }
 
   void _submit() {
@@ -188,7 +208,7 @@ class _AddProductPageState extends State<AddProductPage> {
                           decoration: const InputDecoration(
                             hintText: 'Scan or enter barcode',
                           ),
-                          validator: AppValidators.required('Please enter a barcode'),
+                          validator: AppValidators.barcode,
                           onSaved: (value) => _barcode = value!,
                         ),
                       ),
@@ -203,6 +223,20 @@ class _AddProductPageState extends State<AddProductPage> {
                               color: AppTheme.primaryColor),
                           onPressed: _scanBarcode,
                           padding: const EdgeInsets.all(14),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.auto_fix_high,
+                              color: AppTheme.primaryColor),
+                          onPressed: _generateUniqueBarcode,
+                          padding: const EdgeInsets.all(14),
+                          tooltip: 'Generate Barcode',
                         ),
                       ),
                     ],

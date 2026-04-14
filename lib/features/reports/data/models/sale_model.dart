@@ -19,12 +19,20 @@ class SaleModel extends HiveObject {
   @HiveField(4, defaultValue: 'Cash')
   final String paymentMethod;
 
+  @HiveField(5)
+  final String? customerName;
+
+  @HiveField(6)
+  final String? customerPhone;
+
   SaleModel({
     required this.id,
     required this.timestamp,
     required this.items,
     required this.totalAmount,
     required this.paymentMethod,
+    this.customerName,
+    this.customerPhone,
   });
 }
 

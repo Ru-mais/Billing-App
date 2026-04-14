@@ -179,6 +179,8 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
          items: saleItems,
          totalAmount: state.totalAmount,
          paymentMethod: event.paymentMethod,
+         customerName: event.customerName,
+         customerPhone: event.customerPhone,
       );
       
       await HiveDatabase.salesBox.put(sale.id, sale);
@@ -232,6 +234,8 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
             total: state.totalAmount,
             footer: event.footer,
             gstIn: event.gstIn,
+            customerName: event.customerName,
+            customerPhone: event.customerPhone,
          );
       } else {
          // Thermal Print
@@ -247,6 +251,8 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
             total: state.totalAmount,
             footer: event.footer,
             gstIn: event.gstIn,
+            customerName: event.customerName,
+            customerPhone: event.customerPhone,
          );
       }
 

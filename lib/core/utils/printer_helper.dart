@@ -116,6 +116,8 @@ class PrinterHelper {
     required double total,
     required String footer,
     String? gstIn,
+    String? customerName,
+    String? customerPhone,
   }) async {
     if (!_isConnected) return;
 
@@ -154,6 +156,20 @@ class PrinterHelper {
     }
     bytes += _textToBytes(phone);
     bytes += EscPos.lineFeed;
+
+    if (customerName != null && customerName.isNotEmpty) {
+      bytes += _textToBytes('Customer: $customerName');
+      bytes += EscPos.lineFeed;
+    }
+    if (customerPhone != null && customerPhone.isNotEmpty) {
+      bytes += _textToBytes('Phone: $customerPhone');
+      bytes += EscPos.lineFeed;
+    }
+
+    if ((customerName != null && customerName.isNotEmpty) ||
+        (customerPhone != null && customerPhone.isNotEmpty)) {
+      bytes += EscPos.lineFeed;
+    }
 
     // Date and Time
     String formattedDate =

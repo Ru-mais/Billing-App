@@ -17,6 +17,8 @@ class PdfHelper {
     required double total,
     required String footer,
     String? gstIn,
+    String? customerName,
+    String? customerPhone,
   }) async {
     final pdf = pw.Document();
 
@@ -37,6 +39,15 @@ class PdfHelper {
               if (address2.isNotEmpty) pw.Text(address2, style: const pw.TextStyle(fontSize: 12)),
               pw.Text(phone, style: const pw.TextStyle(fontSize: 12)),
               pw.SizedBox(height: 8),
+
+              if (customerName != null && customerName.isNotEmpty) ...[
+                pw.Text('Customer: $customerName', style: const pw.TextStyle(fontSize: 12)),
+              ],
+              if (customerPhone != null && customerPhone.isNotEmpty) ...[
+                pw.Text('Phone: $customerPhone', style: const pw.TextStyle(fontSize: 12)),
+              ],
+              if ((customerName != null && customerName.isNotEmpty) || (customerPhone != null && customerPhone.isNotEmpty))
+                pw.SizedBox(height: 8),
               
               pw.Text(DateFormat('dd-MM-yyyy hh:mm a').format(DateTime.now()), style: const pw.TextStyle(fontSize: 12)),
               pw.Text('Invoice: $invoiceNo', style: const pw.TextStyle(fontSize: 12)),

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/pdf_helper.dart';
 import '../../../../core/utils/supplier_store.dart';
+import '../../../../core/data/hive_database.dart';
+import '../../../reports/data/models/purchase_order_model.dart';
 
 class SupplierLedgerPage extends StatefulWidget {
   const SupplierLedgerPage({super.key});
@@ -184,36 +186,168 @@ class _SupplierLedgerPageState extends State<SupplierLedgerPage> {
 
   void _showBillDetails(SupplierModel supplier, SupplierBill bill) {
     final due = bill.amount - bill.paidAmount;
+
+    PurchaseOrderModel? order;
+    if (bill.purchaseOrderId != null) {
+      try {
+        order = HiveDatabase.purchaseOrdersBox.values.firstWhere(
+          (o) => o.id == bill.purchaseOrderId,
+        );
+      } catch (_) {}
+    }
+
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Bill Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Supplier: ${supplier.name}'),
-            const SizedBox(height: 8),
-            Text(
-              'Date: ${bill.date.day.toString().padLeft(2, '0')}/${bill.date.month.toString().padLeft(2, '0')}/${bill.date.year}',
-            ),
-            const SizedBox(height: 8),
-            Text('Bill Amount: ₹${bill.amount.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-            Text('Paid: ₹${bill.paidAmount.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-            Text(
-              'Due: ₹${due.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: due > 0 ? Colors.redAccent : Colors.green,
+            const Text('Bill Details',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            if (order != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'ID: ${order.id.substring(0, 8).toUpperCase()}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
-            if (bill.note.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text('Note: ${bill.note}'),
-            ],
           ],
+        ),
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.9,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Supplier',
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.bold),
+                        ),
+                        Text(supplier.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Date',
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${bill.date.day.toString().padLeft(2, '0')}/${bill.date.month.toString().padLeft(2, '0')}/${bill.date.year}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                if (order != null) ...[
+                  const Text(
+                    'PURCHASED ITEMS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Table(
+                    columnWidths: const {
+                      0: FlexColumnWidth(3),
+                      1: FlexColumnWidth(1),
+                      2: FlexColumnWidth(1.5),
+                      3: FlexColumnWidth(1.5),
+                    },
+                    children: [
+                      TableRow(
+                        decoration: BoxDecoration(color: Colors.grey[100]),
+                        children: [
+                          _buildTableCell('Item', isHeader: true),
+                          _buildTableCell('Qty',
+                              isHeader: true, align: TextAlign.center),
+                          _buildTableCell('Rate',
+                              isHeader: true, align: TextAlign.right),
+                          _buildTableCell('Total',
+                              isHeader: true, align: TextAlign.right),
+                        ],
+                      ),
+                      ...order.items.map((item) => TableRow(
+                            children: [
+                              _buildTableCell(
+                                  '${item.productName}${item.size != null && item.size!.isNotEmpty ? ' (${item.size})' : ''}'),
+                              _buildTableCell(item.quantity.toString(),
+                                  align: TextAlign.center),
+                              _buildTableCell(
+                                  '₹${item.unitCost.toStringAsFixed(2)}',
+                                  align: TextAlign.right),
+                              _buildTableCell(
+                                  '₹${item.totalCost.toStringAsFixed(2)}',
+                                  align: TextAlign.right),
+                            ],
+                          )),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Column(
+                    children: [
+                      _summaryRow('Bill Total', bill.amount, isBold: true),
+                      const SizedBox(height: 4),
+                      _summaryRow('Paid Amount', bill.paidAmount,
+                          color: Colors.green),
+                      const Divider(height: 16),
+                      _summaryRow('Balance Due', due,
+                          color: due > 0 ? Colors.redAccent : Colors.green,
+                          isBold: true),
+                    ],
+                  ),
+                ),
+                if (bill.note.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Note',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold),
+                  ),
+                  Text(bill.note, style: const TextStyle(fontSize: 13)),
+                ],
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -222,6 +356,42 @@ class _SupplierLedgerPageState extends State<SupplierLedgerPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTableCell(String text,
+      {bool isHeader = false, TextAlign align = TextAlign.left}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Text(
+        text,
+        textAlign: align,
+        style: TextStyle(
+          fontSize: isHeader ? 10 : 11,
+          fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, double value,
+      {Color? color, bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+        Text(
+          '₹${value.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 

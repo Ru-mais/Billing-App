@@ -20,4 +20,14 @@ class AppValidators {
     }
     return null;
   }
+
+  static String? barcode(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Barcode is required';
+    }
+    if (value.trim().length < 9) {
+      return 'Barcode must be at least 9 characters';
+    }
+    return null;
+  }
 }

@@ -38,6 +38,7 @@ class SupplierStore {
     double paidAmount = 0,
     DateTime? date,
     String note = '',
+    String? purchaseOrderId,
   }) async {
     final trimmed = supplierName.trim();
     if (trimmed.isEmpty || billAmount <= 0 || paidAmount < 0) return;
@@ -73,6 +74,7 @@ class SupplierStore {
             paidAmount: paidAmount,
             date: now,
             note: note,
+            purchaseOrderId: purchaseOrderId,
           ),
         ],
         payments: paymentEntries,
@@ -101,6 +103,7 @@ class SupplierStore {
             paidAmount: paidAmount,
             date: now,
             note: note,
+            purchaseOrderId: purchaseOrderId,
           ),
         ],
         payments: nextPayments,
@@ -267,6 +270,7 @@ class SupplierBill {
   final double paidAmount;
   final DateTime date;
   final String note;
+  final String? purchaseOrderId;
 
   SupplierBill({
     required this.id,
@@ -274,6 +278,7 @@ class SupplierBill {
     required this.paidAmount,
     required this.date,
     required this.note,
+    this.purchaseOrderId,
   });
 
   Map<String, dynamic> toMap() {
@@ -283,6 +288,7 @@ class SupplierBill {
       'paidAmount': paidAmount,
       'date': date.toIso8601String(),
       'note': note,
+      'purchaseOrderId': purchaseOrderId,
     };
   }
 
@@ -294,6 +300,7 @@ class SupplierBill {
       date: DateTime.tryParse(map['date']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       note: map['note']?.toString() ?? '',
+      purchaseOrderId: map['purchaseOrderId']?.toString(),
     );
   }
 }

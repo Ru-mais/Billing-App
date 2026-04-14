@@ -17,6 +17,16 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   String _selectedPaymentMethod = 'Cash';
+  bool _canPop = false;
+  final _customerNameController = TextEditingController();
+  final _customerPhoneController = TextEditingController();
+
+  @override
+  void dispose() {
+    _customerNameController.dispose();
+    _customerPhoneController.dispose();
+    super.dispose();
+  }
 
   Future<void> _cancelBill() async {
     final shouldCancel = await showDialog<bool>(
@@ -42,7 +52,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     if (shouldCancel == true && mounted) {
       context.read<BillingBloc>().add(ClearCartEvent());
-      context.go('/');
+      setState(() {
+        _canPop = true;
+      });
+      context.pop();
     }
   }
 
@@ -51,7 +64,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     const borderColor = Color(0xFFE5E5EA);
 
     return PopScope(
-        canPop: false,
+        canPop: _canPop,
         onPopInvokedWithResult: (bool didPop, dynamic result) {
           if (didPop) return;
           _cancelBill();
@@ -78,7 +91,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     content: Text('Printed successfully'),
                     backgroundColor: Colors.green));
                 context.read<BillingBloc>().add(ClearCartEvent());
-                context.go('/');
+                setState(() {
+                  _canPop = true;
+                });
+                context.pop();
               } else if (state.error != null) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -177,6 +193,68 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     }),
                                   ],
                                 ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Customer Details Section
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: borderColor),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'CUSTOMER DETAILS (OPTIONAL)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _customerNameController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Customer Name',
+                                      prefixIcon: const Icon(Icons.person_outline,
+                                          size: 20),
+                                      border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 12),
+                                    ),
+                                    textCapitalization: TextCapitalization.words,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _customerPhoneController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Phone Number',
+                                      prefixIcon:
+                                          const Icon(Icons.phone_outlined, size: 20),
+                                      border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 12),
+                                    ),
+                                    keyboardType: TextInputType.phone,
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -403,7 +481,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                     shopState.shop.footerText,
                                                 paymentMethod:
                                                     _selectedPaymentMethod,
-                                                gstIn: shopState.shop.gstIn));
+                                                gstIn: shopState.shop.gstIn,
+                                                customerName:
+                                                    _customerNameController.text.trim(),
+                                                customerPhone:
+                                                    _customerPhoneController.text.trim()));
                                       } else {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(const SnackBar(

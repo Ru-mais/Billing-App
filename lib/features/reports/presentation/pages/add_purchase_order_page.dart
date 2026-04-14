@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/utils/sync_manager.dart';
 import 'package:go_router/go_router.dart';
@@ -91,6 +92,16 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
       return;
     }
 
+    // Check if any product is not created
+    final hasUncreatedProducts = filledItems.any((row) => row.productId == null);
+    if (hasUncreatedProducts) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Some products are not created. Please create them first.'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -156,6 +167,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         paidAmount: paidAmount,
         date: _selectedDate,
         note: 'Purchase Order',
+        purchaseOrderId: order.id,
       );
       
       // Sync Purchase Order to Cloud
@@ -178,6 +190,24 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  String _generateBarcode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = Random();
+    return List.generate(
+            9, (index) => chars[random.nextInt(chars.length)])
+        .join();
+  }
+
+  String _generateUniqueBarcode() {
+    String newBarcode;
+    bool exists;
+    do {
+      newBarcode = _generateBarcode();
+      exists = HiveDatabase.productBox.values.any((p) => p.barcode == newBarcode);
+    } while (exists);
+    return newBarcode;
   }
 
   void _showQuickAddProductDialog(_ItemRow row) {
@@ -206,9 +236,48 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
                   decoration: _inputDec(label: 'Product Name', icon: Icons.abc),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: barcodeCtrl,
-                  decoration: _inputDec(label: 'Barcode', icon: Icons.qr_code),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: barcodeCtrl,
+                        decoration:
+                            _inputDec(label: 'Barcode', icon: Icons.qr_code),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner,
+                            color: AppTheme.primaryColor),
+                        onPressed: () async {
+                          final result = await context.push<String>('/scanner');
+                          if (result != null && result.isNotEmpty) {
+                            barcodeCtrl.text = result;
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.auto_fix_high,
+                            color: AppTheme.primaryColor),
+                        onPressed: () {
+                          barcodeCtrl.text = _generateUniqueBarcode();
+                        },
+                        tooltip: 'Generate Barcode',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -288,12 +357,26 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
             ),
             ElevatedButton(
               onPressed: () async {
+                final newBarcode = barcodeCtrl.text.trim();
                 if (selectedCategory == null ||
                     priceCtrl.text.isEmpty ||
-                    nameCtrl.text.isEmpty) {
+                    nameCtrl.text.isEmpty ||
+                    newBarcode.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Please fill all mandatory fields'),
+                        backgroundColor: Colors.red),
+                  );
                   return;
                 }
-                final newBarcode = barcodeCtrl.text.trim();
+                if (newBarcode.length < 9) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Barcode must be at least 9 characters'),
+                        backgroundColor: Colors.red),
+                  );
+                  return;
+                }
                 if (newBarcode.isNotEmpty) {
                   final barcodeExists = HiveDatabase.productBox.values.any(
                     (product) =>
