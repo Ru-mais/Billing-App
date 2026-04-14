@@ -270,7 +270,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      'DISCOUNT (${billingState.discountEnabled ? billingState.discountPercent.toStringAsFixed(0) : '0'}%)',
+                                      'DISCOUNT ${billingState.discountEnabled ? (billingState.discountType == DiscountType.percentage ? '(${billingState.discountValue}%)' : '(Flat)') : ''}',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -402,7 +402,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                 footer:
                                                     shopState.shop.footerText,
                                                 paymentMethod:
-                                                    _selectedPaymentMethod));
+                                                    _selectedPaymentMethod,
+                                                gstIn: shopState.shop.gstIn));
                                       } else {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(const SnackBar(

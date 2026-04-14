@@ -16,6 +16,7 @@ class PdfHelper {
     required double discountAmount,
     required double total,
     required String footer,
+    String? gstIn,
   }) async {
     final pdf = pw.Document();
 
@@ -28,6 +29,10 @@ class PdfHelper {
             children: [
               pw.Text(shopName, style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 4),
+              if (gstIn != null && gstIn.isNotEmpty) ...[
+                pw.Text('GSTIN: $gstIn', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 2),
+              ],
               if (address1.isNotEmpty) pw.Text(address1, style: const pw.TextStyle(fontSize: 12)),
               if (address2.isNotEmpty) pw.Text(address2, style: const pw.TextStyle(fontSize: 12)),
               pw.Text(phone, style: const pw.TextStyle(fontSize: 12)),

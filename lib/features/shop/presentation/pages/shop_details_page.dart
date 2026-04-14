@@ -23,6 +23,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
   late TextEditingController _phoneController;
   late TextEditingController _upiController;
   late TextEditingController _footerController;
+  late TextEditingController _gstInController;
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
     _phoneController = TextEditingController();
     _upiController = TextEditingController();
     _footerController = TextEditingController();
+    _gstInController = TextEditingController();
 
     // Load shop data
     context.read<ShopBloc>().add(LoadShopEvent());
@@ -46,6 +48,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
       _phoneController.text = shop.phoneNumber;
       _upiController.text = shop.upiId;
       _footerController.text = shop.footerText;
+      _gstInController.text = shop.gstIn;
     }
   }
 
@@ -57,6 +60,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
     _phoneController.dispose();
     _upiController.dispose();
     _footerController.dispose();
+    _gstInController.dispose();
     super.dispose();
   }
 
@@ -69,6 +73,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
         phoneNumber: _phoneController.text,
         upiId: _upiController.text,
         footerText: _footerController.text,
+        gstIn: _gstInController.text,
       );
 
       context.read<ShopBloc>().add(UpdateShopEvent(shop));
@@ -156,6 +161,12 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
                     _buildTextField(
                       controller: _upiController,
                       hint: 'royalfootwear@oksbi',
+                    ),
+                    const SizedBox(height: 15),
+                    const InputLabel(text: 'GSTIN (Optional)'),
+                    _buildTextField(
+                      controller: _gstInController,
+                      hint: '32AAAAA0000A1Z5',
                     ),
                     const SizedBox(height: 15),
                     Row(

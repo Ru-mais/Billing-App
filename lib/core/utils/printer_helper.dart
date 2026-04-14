@@ -115,6 +115,7 @@ class PrinterHelper {
     required double discountAmount,
     required double total,
     required String footer,
+    String? gstIn,
   }) async {
     if (!_isConnected) return;
 
@@ -130,6 +131,15 @@ class PrinterHelper {
     bytes += EscPos.textLarge;
     bytes += _textToBytes(shopName);
     bytes += EscPos.lineFeed;
+
+    // GSTIN (Center, Normal)
+    if (gstIn != null && gstIn.isNotEmpty) {
+      bytes += EscPos.textNormal;
+      bytes += EscPos.boldOn;
+      bytes += _textToBytes('GSTIN: $gstIn');
+      bytes += EscPos.lineFeed;
+      bytes += EscPos.boldOff;
+    }
 
     // Address & Phone (Normal, Center)
     bytes += EscPos.textNormal;

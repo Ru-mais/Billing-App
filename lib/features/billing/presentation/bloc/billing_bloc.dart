@@ -25,7 +25,8 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     on<UpdateQuantityEvent>(_onUpdateQuantity);
     on<ClearCartEvent>(_onClearCart);
     on<ToggleDiscountEvent>(_onToggleDiscount);
-    on<SetDiscountPercentEvent>(_onSetDiscountPercent);
+    on<SetDiscountValueEvent>(_onSetDiscountValue);
+    on<SetDiscountTypeEvent>(_onSetDiscountType);
     on<PrintReceiptEvent>(_onPrintReceipt);
   }
 
@@ -145,10 +146,14 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     emit(state.copyWith(discountEnabled: event.enabled));
   }
 
-  void _onSetDiscountPercent(
-      SetDiscountPercentEvent event, Emitter<BillingState> emit) {
-    final safePercent = event.percent.clamp(0, 100).toDouble();
-    emit(state.copyWith(discountPercent: safePercent));
+  void _onSetDiscountValue(
+      SetDiscountValueEvent event, Emitter<BillingState> emit) {
+    emit(state.copyWith(discountValue: event.value));
+  }
+
+  void _onSetDiscountType(
+      SetDiscountTypeEvent event, Emitter<BillingState> emit) {
+    emit(state.copyWith(discountType: event.type));
   }
 
   Future<void> _onPrintReceipt(
@@ -226,6 +231,7 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
             discountAmount: state.discountAmount,
             total: state.totalAmount,
             footer: event.footer,
+            gstIn: event.gstIn,
          );
       } else {
          // Thermal Print
@@ -239,7 +245,8 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
             netAmount: state.netAmount,
             discountAmount: state.discountAmount,
             total: state.totalAmount,
-            footer: event.footer
+            footer: event.footer,
+            gstIn: event.gstIn,
          );
       }
 

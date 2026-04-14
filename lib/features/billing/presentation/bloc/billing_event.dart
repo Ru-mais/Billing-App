@@ -53,12 +53,20 @@ class ToggleDiscountEvent extends BillingEvent {
   List<Object> get props => [enabled];
 }
 
-class SetDiscountPercentEvent extends BillingEvent {
-  final double percent;
-  const SetDiscountPercentEvent(this.percent);
+class SetDiscountValueEvent extends BillingEvent {
+  final double value;
+  const SetDiscountValueEvent(this.value);
 
   @override
-  List<Object> get props => [percent];
+  List<Object> get props => [value];
+}
+
+class SetDiscountTypeEvent extends BillingEvent {
+  final DiscountType type;
+  const SetDiscountTypeEvent(this.type);
+
+  @override
+  List<Object> get props => [type];
 }
 
 class PrintReceiptEvent extends BillingEvent {
@@ -68,6 +76,7 @@ class PrintReceiptEvent extends BillingEvent {
   final String phone;
   final String footer;
   final String paymentMethod;
+  final String gstIn;
 
   const PrintReceiptEvent({
     required this.shopName,
@@ -76,8 +85,10 @@ class PrintReceiptEvent extends BillingEvent {
     required this.phone,
     required this.footer,
     this.paymentMethod = 'Cash',
+    this.gstIn = '',
   });
 
   @override
-  List<Object> get props => [shopName, address1, address2, phone, footer, paymentMethod];
+  List<Object> get props =>
+      [shopName, address1, address2, phone, footer, paymentMethod, gstIn];
 }

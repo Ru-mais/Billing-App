@@ -1,5 +1,7 @@
 part of 'billing_bloc.dart';
 
+enum DiscountType { percentage, amount }
+
 class BillingState extends Equatable {
   final List<CartItem> cartItems;
   final String? error;
@@ -7,7 +9,8 @@ class BillingState extends Equatable {
   final bool printSuccess;
   final Product? pendingSizeProduct; // product waiting for size selection
   final bool discountEnabled;
-  final double discountPercent;
+  final double discountValue;
+  final DiscountType discountType;
 
   const BillingState({
     this.cartItems = const [],
@@ -16,13 +19,22 @@ class BillingState extends Equatable {
     this.printSuccess = false,
     this.pendingSizeProduct,
     this.discountEnabled = false,
-    this.discountPercent = 0,
+    this.discountValue = 0,
+    this.discountType = DiscountType.percentage,
   });
 
-  double get netAmount => cartItems.fold(0, (sum, item) => sum + item.total);
-  double get discountAmount =>
-      discountEnabled ? (netAmount * (discountPercent / 100)) : 0;
-  double get totalAmount => (netAmount - discountAmount).clamp(0, double.infinity);
+  double get netAmount => cartItems.fold(0.0, (sum, item) => sum + item.total);
+  
+  double get discountAmount {
+    if (!discountEnabled) return 0.0;
+    if (discountType == DiscountType.percentage) {
+      return netAmount * (discountValue / 100);
+    } else {
+      return discountValue;
+    }
+  }
+
+  double get totalAmount => (netAmount - discountAmount).clamp(0.0, double.infinity);
 
   BillingState copyWith({
     List<CartItem>? cartItems,
@@ -33,7 +45,8 @@ class BillingState extends Equatable {
     Product? pendingSizeProduct,
     bool clearPendingProduct = false,
     bool? discountEnabled,
-    double? discountPercent,
+    double? discountValue,
+    DiscountType? discountType,
   }) {
     return BillingState(
       cartItems: cartItems ?? this.cartItems,
@@ -42,7 +55,8 @@ class BillingState extends Equatable {
       printSuccess: printSuccess ?? this.printSuccess,
       pendingSizeProduct: clearPendingProduct ? null : (pendingSizeProduct ?? this.pendingSizeProduct),
       discountEnabled: discountEnabled ?? this.discountEnabled,
-      discountPercent: discountPercent ?? this.discountPercent,
+      discountValue: discountValue ?? this.discountValue,
+      discountType: discountType ?? this.discountType,
     );
   }
 
@@ -54,6 +68,7 @@ class BillingState extends Equatable {
         printSuccess,
         pendingSizeProduct,
         discountEnabled,
-        discountPercent,
+        discountValue,
+        discountType,
       ];
 }

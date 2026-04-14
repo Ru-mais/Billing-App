@@ -119,9 +119,11 @@ class _HomePageState extends State<HomePage> {
       ),
       bottomSheet:
           BlocBuilder<BillingBloc, BillingState>(builder: (context, state) {
-        if (_discountController.text !=
-            state.discountPercent.toStringAsFixed(0)) {
-          _discountController.text = state.discountPercent.toStringAsFixed(0);
+        // Sync controller only if external state changes significantly
+        final currentVal = double.tryParse(_discountController.text) ?? 0.0;
+        if (currentVal != state.discountValue) {
+          _discountController.text =
+              state.discountValue == 0 ? '' : state.discountValue.toString();
         }
 
         return Container(
@@ -147,23 +149,53 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-              if (state.discountEnabled)
+              if (state.discountEnabled) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SegmentedButton<DiscountType>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: DiscountType.percentage,
+                        label: Text('Percent (%)', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.percent, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: DiscountType.amount,
+                        label: Text('Flat (₹)', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.currency_rupee, size: 16),
+                      ),
+                    ],
+                    selected: {state.discountType},
+                    onSelectionChanged: (newSelection) {
+                      context
+                          .read<BillingBloc>()
+                          .add(SetDiscountTypeEvent(newSelection.first));
+                    },
+                  ),
+                ),
                 TextField(
                   controller: _discountController,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Discount %',
-                    hintText: 'Enter discount percentage',
-                    prefixIcon: Icon(Icons.percent),
+                  decoration: InputDecoration(
+                    labelText: state.discountType == DiscountType.percentage
+                        ? 'Discount Percentage'
+                        : 'Discount Amount (₹)',
+                    hintText: 'Enter value',
+                    prefixIcon: Icon(state.discountType == DiscountType.percentage
+                        ? Icons.percent
+                        : Icons.currency_rupee),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   onChanged: (value) {
                     final parsed = double.tryParse(value) ?? 0;
                     context
                         .read<BillingBloc>()
-                        .add(SetDiscountPercentEvent(parsed));
+                        .add(SetDiscountValueEvent(parsed));
                   },
                 ),
+              ],
               const SizedBox(height: 8),
               PrimaryButton(
                 onPressed: state.cartItems.isEmpty
