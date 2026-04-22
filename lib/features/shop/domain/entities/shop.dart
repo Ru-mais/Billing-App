@@ -7,6 +7,7 @@ class Shop extends Equatable {
   final String phoneNumber;
   final String upiId;
   final String footerText;
+  final String logoPath;
   final String gstIn;
 
   const Shop({
@@ -16,6 +17,7 @@ class Shop extends Equatable {
     this.phoneNumber = '',
     this.upiId = '',
     this.footerText = '',
+    this.logoPath = '',
     this.gstIn = '',
   });
 
@@ -26,6 +28,7 @@ class Shop extends Equatable {
     String? phoneNumber,
     String? upiId,
     String? footerText,
+    String? logoPath,
     String? gstIn,
   }) {
     return Shop(
@@ -35,11 +38,20 @@ class Shop extends Equatable {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       upiId: upiId ?? this.upiId,
       footerText: footerText ?? this.footerText,
+      logoPath: logoPath ?? this.logoPath,
       gstIn: gstIn ?? this.gstIn,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [name, addressLine1, addressLine2, phoneNumber, upiId, footerText, gstIn];
+  List<Object?> get props => [
+        name,
+        addressLine1,
+        addressLine2,
+        phoneNumber,
+        upiId,
+        footerText,
+        logoPath,
+        gstIn
+      ];
 }

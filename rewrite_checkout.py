@@ -1,65 +1,14 @@
-import 'package:billo/core/widgets/primary_button.dart';
-import 'package:billo/core/theme/app_theme.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-import 'package:pretty_qr_code/pretty_qr_code.dart';
+import re
 
-import '../../../shop/presentation/bloc/shop_bloc.dart';
-import '../bloc/billing_bloc.dart';
+with open("lib/features/billing/presentation/pages/checkout_page.dart", "r") as f:
+    text = f.read()
 
-class CheckoutPage extends StatefulWidget {
-  const CheckoutPage({super.key});
+start_str = "  @override\n  Widget build(BuildContext context) {"
+# Replace from `start_str` to the end of the file.
 
-  @override
-  State<CheckoutPage> createState() => _CheckoutPageState();
-}
+start_idx = text.find(start_str)
 
-class _CheckoutPageState extends State<CheckoutPage> {
-  String _selectedPaymentMethod = 'Cash';
-  bool _canPop = false;
-  final _customerNameController = TextEditingController();
-  final _customerPhoneController = TextEditingController();
-
-  @override
-  void dispose() {
-    _customerNameController.dispose();
-    _customerPhoneController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _cancelBill() async {
-    final shouldCancel = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Cancel Bill'),
-        content: const Text(
-          'Are you sure you want to cancel this bill? All current cart items will be removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child:
-                const Text('Yes, Cancel', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldCancel == true && mounted) {
-      context.read<BillingBloc>().add(ClearCartEvent());
-      setState(() {
-        _canPop = true;
-      });
-      context.pop();
-    }
-  }
-
-  @override
+new_content = """  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = Theme.of(context).dividerColor.withValues(alpha: 0.1);
@@ -129,49 +78,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   child: Column(
                                     children: [
                                       ...billingState.cartItems.map((item) {
-                                        return Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            onTap: () {
-                                              // Provide tap highlights. Future: Allow editing/removal.
-                                            },
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                              decoration: BoxDecoration(
-                                                border: Border(bottom: BorderSide(color: borderColor)),
-                                              ),
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  Text(item.product.name, style: Theme.of(context).textTheme.bodyMedium),
-                                                  Text('₹${item.total.toStringAsFixed(0)}', style: Theme.of(context).textTheme.bodyMedium),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }),
-                                      if (billingState.discountEnabled && billingState.discountAmount > 0)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                           decoration: BoxDecoration(
                                             border: Border(bottom: BorderSide(color: borderColor)),
                                           ),
                                           child: Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text('Discount', style: TextStyle(color: Colors.green[600], fontWeight: FontWeight.w500)),
-                                              Text('- ₹${billingState.discountAmount.toStringAsFixed(0)}', style: TextStyle(color: Colors.green[600], fontWeight: FontWeight.w500)),
+                                              Text(item.product.name, style: Theme.of(context).textTheme.bodyMedium),
+                                              Text('₹${item.total.toStringAsFixed(0)}', style: Theme.of(context).textTheme.bodyMedium),
                                             ],
                                           ),
-                                        ),
+                                        );
+                                      }),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                         child: Row(
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Text('Total', style: TextStyle(fontWeight: FontWeight.bold)),
-                                            Text('₹${billingState.totalAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                            const Text('Total', style: TextStyle(fontWeight: FontWeight.bold)),
+                                            Text('₹${billingState.netAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                       ),
@@ -238,14 +165,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                         decoration: BoxDecoration(
-                                          color: _selectedPaymentMethod == 'Cash' ? Theme.of(context).primaryColor : Colors.transparent,
+                                          color: _selectedPaymentMethod == 'Cash' ? const Color(0xFF0F172A) : Colors.transparent,
                                           borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: _selectedPaymentMethod == 'Cash' ? Theme.of(context).primaryColor : borderColor),
+                                          border: Border.all(color: _selectedPaymentMethod == 'Cash' ? const Color(0xFF0F172A) : borderColor),
                                         ),
                                         child: Text(
                                           'Cash (In Hand)',
                                           style: TextStyle(
-                                            color: _selectedPaymentMethod == 'Cash' ? (isDark ? Colors.black : Colors.white) : Theme.of(context).textTheme.bodyMedium?.color,
+                                            color: _selectedPaymentMethod == 'Cash' ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color,
                                             fontWeight: _selectedPaymentMethod == 'Cash' ? FontWeight.w600 : FontWeight.normal,
                                           ),
                                         ),
@@ -257,14 +184,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                         decoration: BoxDecoration(
-                                          color: _selectedPaymentMethod == 'QR' ? Theme.of(context).primaryColor : Colors.transparent,
+                                          color: _selectedPaymentMethod == 'QR' ? const Color(0xFF0F172A) : Colors.transparent,
                                           borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: _selectedPaymentMethod == 'QR' ? Theme.of(context).primaryColor : borderColor),
+                                          border: Border.all(color: _selectedPaymentMethod == 'QR' ? const Color(0xFF0F172A) : borderColor),
                                         ),
                                         child: Text(
                                           'QR',
                                           style: TextStyle(
-                                            color: _selectedPaymentMethod == 'QR' ? (isDark ? Colors.black : Colors.white) : Theme.of(context).textTheme.bodyMedium?.color,
+                                            color: _selectedPaymentMethod == 'QR' ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color,
                                             fontWeight: _selectedPaymentMethod == 'QR' ? FontWeight.w600 : FontWeight.normal,
                                           ),
                                         ),
@@ -335,8 +262,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                 paymentMethod: _selectedPaymentMethod,
                                                 gstIn: shopState.shop.gstIn,
                                                 customerName: _customerNameController.text.trim(),
-                                                customerPhone: _customerPhoneController.text.trim(),
-                                                logoPath: shopState.shop.logoPath),
+                                                customerPhone: _customerPhoneController.text.trim()),
                                           );
                                         } else {
                                           ScaffoldMessenger.of(context).showSnackBar(
@@ -345,8 +271,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                         }
                                       },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).primaryColor,
-                                  foregroundColor: isDark ? Colors.black : Colors.white,
+                                  backgroundColor: const Color(0xFF0F172A),
+                                  foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -370,3 +296,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 }
+"""
+
+with open("lib/features/billing/presentation/pages/checkout_page.dart", "w") as f:
+    f.write(text[:start_idx] + new_content)
+

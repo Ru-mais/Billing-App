@@ -83,12 +83,12 @@ class _SignInPageState extends State<SignInPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Logo or Icon
-              const Icon(Icons.store_rounded, size: 80, color: AppTheme.primaryColor),
+              Image.asset('assets/icon/app_icon.png', height: 120),
               const SizedBox(height: 16),
               const Text(
-                'Billo',
+                'Bilby',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
               ),
               const Text(
                 'Management Dashboard',

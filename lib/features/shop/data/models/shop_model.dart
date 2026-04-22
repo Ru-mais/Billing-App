@@ -21,6 +21,8 @@ class ShopModel extends Shop {
   final String footerText;
   @HiveField(6, defaultValue: '')
   final String gstIn;
+  @HiveField(7, defaultValue: '')
+  final String logoPath;
 
   const ShopModel({
     required this.name,
@@ -30,6 +32,7 @@ class ShopModel extends Shop {
     required this.upiId,
     required this.footerText,
     this.gstIn = '',
+    this.logoPath = '',
   }) : super(
           name: name,
           addressLine1: addressLine1,
@@ -38,6 +41,7 @@ class ShopModel extends Shop {
           upiId: upiId,
           footerText: footerText,
           gstIn: gstIn,
+          logoPath: logoPath,
         );
 
   factory ShopModel.fromEntity(Shop shop) {
@@ -49,6 +53,7 @@ class ShopModel extends Shop {
       upiId: shop.upiId,
       footerText: shop.footerText,
       gstIn: shop.gstIn,
+      logoPath: shop.logoPath,
     );
   }
 

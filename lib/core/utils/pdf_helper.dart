@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -19,16 +20,36 @@ class PdfHelper {
     String? gstIn,
     String? customerName,
     String? customerPhone,
+    String? logoPath,
   }) async {
     final pdf = pw.Document();
 
+    pw.MemoryImage? logoImage;
+    if (logoPath != null && logoPath.isNotEmpty && !kIsWeb) {
+      try {
+        final File file = File(logoPath);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          logoImage = pw.MemoryImage(bytes);
+        }
+      } catch (e) {
+        debugPrint('Error loading logo for PDF: $e');
+      }
+    }
+
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80, // Similar format to thermal printers
+        pageFormat: PdfPageFormat.roll80,
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
+              if (logoImage != null) ...[
+                pw.Center(
+                  child: pw.Image(logoImage, width: 60, height: 60, fit: pw.BoxFit.contain),
+                ),
+                pw.SizedBox(height: 10),
+              ],
               pw.Text(shopName, style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 4),
               if (gstIn != null && gstIn.isNotEmpty) ...[

@@ -1,5 +1,3 @@
-import 'package:billo/core/widgets/input_label.dart';
-import 'package:billo/core/widgets/primary_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -34,10 +32,11 @@ class _SizeStockRow {
 
 class _EditProductPageState extends State<EditProductPage> {
   final _formKey = GlobalKey<FormState>();
-  late String _name;
-  late double _price;
-  late double _purchasedRate;
-  late int _unifiedStock;
+  late TextEditingController _nameController;
+  late TextEditingController _purchaseRateController;
+  late TextEditingController _sellingRateController;
+  late TextEditingController _unifiedStockController;
+  
   late bool _isSizeSpecific;
   String? _selectedCategory;
   late List<_SizeStockRow> _sizeRows;
@@ -45,11 +44,11 @@ class _EditProductPageState extends State<EditProductPage> {
   @override
   void initState() {
     super.initState();
-    _name = widget.product.name;
-    _price = widget.product.price;
-    _purchasedRate = widget.product.purchasedRate;
+    _nameController = TextEditingController(text: widget.product.name);
+    _purchaseRateController = TextEditingController(text: widget.product.purchasedRate.toStringAsFixed(2));
+    _sellingRateController = TextEditingController(text: widget.product.price.toStringAsFixed(2));
+    _unifiedStockController = TextEditingController(text: widget.product.baseStock.toString());
     _isSizeSpecific = widget.product.isSizeSpecific;
-    _unifiedStock = widget.product.baseStock;
     _selectedCategory = widget.product.category;
 
     if (widget.product.sizeStocks.isNotEmpty) {
@@ -63,6 +62,10 @@ class _EditProductPageState extends State<EditProductPage> {
 
   @override
   void dispose() {
+    _nameController.dispose();
+    _purchaseRateController.dispose();
+    _sellingRateController.dispose();
+    _unifiedStockController.dispose();
     for (final r in _sizeRows) {
       r.dispose();
     }
@@ -71,8 +74,6 @@ class _EditProductPageState extends State<EditProductPage> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-
       final Map<String, int> sizeStocks = {};
       if (_isSizeSpecific) {
         for (final row in _sizeRows) {
@@ -86,12 +87,12 @@ class _EditProductPageState extends State<EditProductPage> {
 
       final updatedProduct = Product(
         id: widget.product.id,
-        name: _name,
+        name: _nameController.text.trim(),
         category: _selectedCategory!,
         barcode: widget.product.barcode,
-        price: _price,
-        purchasedRate: _purchasedRate,
-        baseStock: _isSizeSpecific ? 0 : _unifiedStock,
+        price: double.tryParse(_sellingRateController.text) ?? 0.0,
+        purchasedRate: double.tryParse(_purchaseRateController.text) ?? 0.0,
+        baseStock: _isSizeSpecific ? 0 : (int.tryParse(_unifiedStockController.text) ?? 0),
         isSizeSpecific: _isSizeSpecific,
         sizeStocks: sizeStocks,
       );
@@ -113,18 +114,14 @@ class _EditProductPageState extends State<EditProductPage> {
           textCapitalization: TextCapitalization.words,
         ),
         actions: [
-          TextButton(
-              onPressed: () => context.pop(), child: const Text('Cancel')),
+          TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               final name = ctrl.text.trim();
               if (name.isNotEmpty) {
-                if (HiveDatabase.categoryBox.values.contains(name)) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(content: Text('Category already exists')));
-                  return;
+                if (!HiveDatabase.categoryBox.values.contains(name)) {
+                  HiveDatabase.categoryBox.add(name);
                 }
-                HiveDatabase.categoryBox.add(name);
                 setState(() => _selectedCategory = name);
                 context.pop();
               }
@@ -138,295 +135,231 @@ class _EditProductPageState extends State<EditProductPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final scaffoldBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+
     return Scaffold(
-        appBar: AppBar(
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.chevron_left,
-                size: 32, color: Theme.of(context).primaryColor),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Edit Product',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          centerTitle: true,
+      backgroundColor: scaffoldBg,
+      appBar: AppBar(
+        title: const Text('Edit Product', style: TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => context.pop(),
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Display Barcode (immutable)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 24),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.1)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.qr_code_scanner,
-                            color: AppTheme.primaryColor, size: 28),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('BARCODE',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryColor
-                                        .withValues(alpha: 0.7))),
-                            const SizedBox(height: 2),
-                            Text(widget.product.barcode,
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'monospace')),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const InputLabel(text: 'Product Name'),
-                  TextFormField(
-                    initialValue: _name,
-                    decoration: const InputDecoration(hintText: 'e.g. Footwear Name'),
-                    textCapitalization: TextCapitalization.words,
-                    validator: AppValidators.required('Please enter a name'),
-                    onSaved: (value) => _name = value!,
-                  ),
-                  const SizedBox(height: 24),
-                  const InputLabel(text: 'Category'),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ValueListenableBuilder<Box<String>>(
-                          valueListenable: HiveDatabase.categoryBox.listenable(),
-                          builder: (context, box, _) {
-                            final categories = box.values.toList();
-
-                            // Ensure current product category is in the list
-                            if (_selectedCategory != null &&
-                                !categories.contains(_selectedCategory)) {
-                              categories.add(_selectedCategory!);
-                            }
-
-                            return DropdownButtonFormField<String>(
-                              initialValue: _selectedCategory,
-                              decoration: const InputDecoration(
-                                hintText: 'Select Category',
-                              ),
-                              items: categories
-                                  .map((c) => DropdownMenuItem(
-                                      value: c, child: Text(c)))
-                                  .toList(),
-                              onChanged: (val) =>
-                                  setState(() => _selectedCategory = val),
-                              validator: (val) => val == null
-                                  ? 'Category is mandatory'
-                                  : null,
-                            );
-                          },
-                        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.add,
-                              color: AppTheme.primaryColor),
-                          onPressed: _showAddCategoryDialog,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const SizedBox(height: 24),
-
-                  const InputLabel(text: 'Purchased Rate'),
-                  TextFormField(
-                    initialValue: _purchasedRate.toStringAsFixed(2),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      prefixText: '₹ ',
-                      prefixStyle: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black),
-                    ),
-                    onSaved: (value) => _purchasedRate =
-                        value != null && value.trim().isNotEmpty
-                            ? double.parse(value)
-                            : 0.0,
-                  ),
-                  const SizedBox(height: 24),
-                  const InputLabel(text: 'Selling Price'),
-                  TextFormField(
-                    initialValue: _price.toStringAsFixed(2),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      prefixText: '₹ ',
-                      prefixStyle: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black),
-                    ),
-                    validator: AppValidators.price,
-                    onSaved: (value) => _price = double.parse(value!),
-                  ),
-                  const SizedBox(height: 24),
-                  SwitchListTile(
-                    title: const Text('Specify Sizes & Stocks',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600)),
-                    subtitle: const Text(
-                        'Disable to manage stock as a single unified quantity',
-                        style: TextStyle(fontSize: 12)),
-                    value: _isSizeSpecific,
-                    onChanged: (val) => setState(() => _isSizeSpecific = val),
-                    activeThumbColor: AppTheme.primaryColor,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (!_isSizeSpecific) ...[
-                    const InputLabel(text: 'Available Stock'),
-                    TextFormField(
-                      initialValue: _unifiedStock.toString(),
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(hintText: 'e.g. 100'),
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Please enter stock';
-                        }
-                        if (int.tryParse(val) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      },
-                      onSaved: (value) => _unifiedStock = int.parse(value!),
-                    ),
-                  ],
-
-                  if (_isSizeSpecific) ...[
-                    // Sizes & Stock section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const InputLabel(text: 'Sizes & Stock'),
-                        TextButton.icon(
-                          onPressed: () =>
-                              setState(() => _sizeRows.add(_SizeStockRow())),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Add Size'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppTheme.primaryColor,
-                            padding: EdgeInsets.zero,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Read-only Barcode
+                          const Text('Product Code', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+                          const SizedBox(height: 6),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.5) : Colors.grey[100],
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Text(widget.product.barcode, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                          const SizedBox(height: 20),
 
-                    Row(
-                      children: const [
-                        Expanded(
-                            flex: 3,
-                            child: Text('Size',
-                                style:
-                                    TextStyle(fontSize: 12, color: Colors.grey))),
-                        SizedBox(width: 8),
-                        Expanded(
-                            flex: 3,
-                            child: Text('Available Stock',
-                                style:
-                                    TextStyle(fontSize: 12, color: Colors.grey))),
-                        SizedBox(width: 36),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                          _buildTextField('Product Name', _nameController, 'e.g. Nike Air Max', validator: AppValidators.required('Required')),
+                          
+                          const Text('Select Category', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ValueListenableBuilder(
+                                  valueListenable: HiveDatabase.categoryBox.listenable(),
+                                  builder: (context, box, _) {
+                                    final list = box.values.toList();
+                                    if (_selectedCategory != null && !list.contains(_selectedCategory)) {
+                                      list.add(_selectedCategory!);
+                                    }
+                                    return DropdownButtonFormField<String>(
+                                      value: _selectedCategory,
+                                      items: list.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                      onChanged: (v) => setState(() => _selectedCategory = v),
+                                      decoration: _fieldDecoration('Category'),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              _buildCircularAddButton(_showAddCategoryDialog),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          _buildTextField('Purchase Rate', _purchaseRateController, '0.00', keyboardType: TextInputType.number),
+                          _buildTextField('Selling Rate', _sellingRateController, '0.00', keyboardType: TextInputType.number, validator: AppValidators.required('Required')),
 
-                    ...List.generate(_sizeRows.length, (index) {
-                      final row = _sizeRows[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: row.sizeCtrl,
-                                decoration: const InputDecoration(
-                                  hintText: 'e.g. 7',
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                                ),
-                                validator: (val) =>
-                                    _isSizeSpecific && (val == null || val.trim().isEmpty)
-                                        ? 'Required'
-                                        : null,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Has Size', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                              Switch(
+                                value: _isSizeSpecific,
+                                onChanged: (v) => setState(() => _isSizeSpecific = v),
+                                activeColor: const Color(0xFF0F172A),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          if (!_isSizeSpecific)
+                            _buildTextField('Total Stock', _unifiedStockController, 'e.g. 100', keyboardType: TextInputType.number),
+
+                          if (_isSizeSpecific) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Sizes & Stocks', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+                                TextButton(
+                                  onPressed: () => setState(() => _sizeRows.add(_SizeStockRow())),
+                                  child: const Text('+ Add Size', style: TextStyle(fontSize: 12)),
+                                )
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: row.stockCtrl,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  hintText: '0',
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
+                            ..._sizeRows.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final row = entry.value;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(child: TextFormField(controller: row.sizeCtrl, decoration: _fieldDecoration('Size'))),
+                                    const SizedBox(width:  12),
+                                    Expanded(child: TextFormField(controller: row.stockCtrl, keyboardType: TextInputType.number, decoration: _fieldDecoration('Stock'))),
+                                    if (_sizeRows.length > 1)
+                                      IconButton(onPressed: () => setState(() => _sizeRows.removeAt(idx)), icon: const Icon(Icons.remove_circle_outline, color: Colors.red)),
+                                  ],
                                 ),
-                                validator: (val) {
-                                  if (!_isSizeSpecific) return null;
-                                  if (val == null || val.trim().isEmpty) {
-                                    return 'Required';
-                                  }
-                                  if (int.tryParse(val) == null) return 'Invalid';
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline,
-                                  color: Colors.red, size: 22),
-                              onPressed: _sizeRows.length > 1
-                                  ? () => setState(() {
-                                        _sizeRows[index].dispose();
-                                        _sizeRows.removeAt(index);
-                                      })
-                                  : null,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
+                              );
+                            }),
+                          ]
+                        ],
+                      ),
+                    ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
+          // Bottom Actions
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: cardBg, border: Border(top: BorderSide(color: borderColor))),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => context.pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: borderColor),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: isDark ? Colors.black : Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, String hint, {
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          validator: validator,
+          decoration: _fieldDecoration(hint),
         ),
-        bottomNavigationBar: PrimaryButton(
-          onPressed: _submit,
-          icon: Icons.save,
-          label: 'Save Changes',
-        ));
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  InputDecoration _fieldDecoration(String hint) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0);
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
+      filled: true,
+      fillColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: borderColor)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: borderColor)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5)),
+    );
+  }
+
+  Widget _buildCircularAddButton(VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Icon(Icons.add, size: 20),
+      ),
+    );
   }
 }

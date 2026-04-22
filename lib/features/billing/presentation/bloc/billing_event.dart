@@ -79,6 +79,7 @@ class PrintReceiptEvent extends BillingEvent {
   final String gstIn;
   final String? customerName;
   final String? customerPhone;
+  final String? logoPath;
 
   const PrintReceiptEvent({
     required this.shopName,
@@ -90,6 +91,7 @@ class PrintReceiptEvent extends BillingEvent {
     this.gstIn = '',
     this.customerName,
     this.customerPhone,
+    this.logoPath,
   });
 
   @override
@@ -102,6 +104,7 @@ class PrintReceiptEvent extends BillingEvent {
         paymentMethod,
         gstIn,
         customerName ?? '',
-        customerPhone ?? ''
+        customerPhone ?? '',
+        logoPath ?? ''
       ];
 }

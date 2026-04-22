@@ -41,8 +41,50 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    // Re-initialize printer state whenever settings page opens
     context.read<PrinterBloc>().add(InitPrinterEvent());
+  }
+
+  Widget _buildBoxButton(String text, VoidCallback onTap) {
+    final borderColor = Theme.of(context).dividerColor.withOpacity(0.1);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: borderColor),
+        ),
+        child: Text(text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w500)),
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, List<Widget> children) {
+    final borderColor = Theme.of(context).dividerColor.withOpacity(0.1);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
   }
 
   @override
@@ -50,395 +92,139 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.chevron_left,
-              size: 28, color: Theme.of(context).primaryColor),
-          onPressed: () => context.pop(),
-        ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        centerTitle: false,
+        automaticallyImplyLeading: false, // Removing default leading to respect the screenshot explicitly requested.
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Column(
           children: [
-            // Profile Section
-            Container(
-              width: double.infinity,
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-              child: BlocBuilder<ShopBloc, ShopState>(
-                builder: (context, state) {
-                  String shopName = 'Billo';
-                  String initials = 'B';
-                  if (state is ShopLoaded && state.shop.name.isNotEmpty) {
-                    shopName = state.shop.name;
-                    final parts = shopName.split(' ');
-                    initials = parts
-                        .take(2)
-                        .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '')
-                        .join('');
-                    if (initials.isEmpty) initials = 'S';
-                  }
-
-                  return Column(
-                    children: [
-                      Container(
-                        width: 96,
-                        height: 96,
-                        decoration: BoxDecoration(
-                            color: AppTheme.primaryColor,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primaryColor
-                                    .withValues(alpha: 0.2),
-                                blurRadius: 15,
-                                spreadRadius: 5,
-                              )
-                            ]),
-                        alignment: Alignment.center,
-                        child: Text(initials,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -1)),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(shopName.toUpperCase(),
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                    ],
-                  );
-                },
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
             // Management Section
-            _buildSectionHeader('Management'),
-            _buildListGroup(
-              children: [
-                _buildListItem(
-                  icon: Icons.qr_code_scanner,
-                  title: 'Products',
-                  subtitle: 'Manage stock and barcodes',
-                  onTap: () => context.push('/products'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.storefront,
-                  title: 'Shop Details',
-                  subtitle: 'Edit business info & address',
-                  onTap: () => context.push('/shop'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.groups_2_outlined,
-                  title: 'Supplier',
-                  subtitle: 'Manage supplier balance, credit and dues',
-                  onTap: () => context.push('/supplier_ledger'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.receipt_long,
-                  title: 'Daily Report',
-                  subtitle: 'View today\'s sales and bills',
-                  onTap: () => context.push('/daily_report'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.calendar_month,
-                  title: 'Monthly Report',
-                  subtitle: 'View this month\'s aggregated sales',
-                  onTap: () => context.push('/monthly_report'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Product Stock Report',
-                  subtitle: 'Stock per size, sorted low to high',
-                  onTap: () => context.push('/product_report'),
-                ),
+            _buildSection(
+              'Management',
+              [
+                _buildBoxButton('Shop Details', () => context.push('/shop')),
+                _buildBoxButton('Products', () => context.push('/products')),
+                _buildBoxButton('Daily Report', () => context.push('/daily_report')),
+                _buildBoxButton('Monthly Report', () => context.push('/monthly_report')),
+                _buildBoxButton('Suppliers', () => context.push('/supplier_ledger')),
+                _buildBoxButton('Stock Report', () => context.push('/product_report')),
               ],
             ),
 
-            const SizedBox(height: 24),
-
-            // Purchase Orders Section
-            _buildSectionHeader('Purchase Orders'),
-            _buildListGroup(
-              children: [
-                _buildListItem(
-                  icon: Icons.add_shopping_cart,
-                  title: 'Add Purchase Order',
-                  subtitle: 'Record a new restock order',
-                  onTap: () => context.push('/add_purchase_order'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Daily Purchase Report',
-                  subtitle: 'View today\'s purchase orders',
-                  onTap: () => context.push('/daily_purchase_report'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.calendar_today_outlined,
-                  title: 'Monthly Purchase Report',
-                  subtitle: 'View this month\'s purchase summary',
-                  onTap: () => context.push('/monthly_purchase_report'),
-                ),
+            // Purchase Section
+            _buildSection(
+              'Purchase',
+              [
+                _buildBoxButton('Add Purchase', () => context.push('/add_purchase_order')),
+                _buildBoxButton('Daily Purchase Report', () => context.push('/daily_purchase_report')),
+                _buildBoxButton('Monthly Purchase Report', () => context.push('/monthly_purchase_report')),
               ],
             ),
-
-            const SizedBox(height: 24),
 
             // Hardware Section
-            _buildSectionHeader('Hardware'),
-            BlocConsumer<PrinterBloc, PrinterState>(
-              listener: (context, state) {
-                if (state.errorMessage != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(state.errorMessage!),
-                      backgroundColor: Colors.red));
-                } else if (state.status == PrinterStatus.connected) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Connected to printer'),
-                      backgroundColor: Colors.green));
-                }
-              },
-              builder: (context, state) {
-                return _buildListGroup(
-                  children: [
-                    _buildListItem(
-                      icon: Icons.print,
-                      title: 'Print Device',
-                      subtitleWidget: Row(
-                        children: [
-                          Text(
-                            state.connectedMac != null
-                                ? (state.connectedName ?? 'Printer connected')
-                                : 'No printer connected',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[500]),
-                          ),
-                          if (state.connectedMac != null) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: Colors.teal[100],
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.teal[200]!)),
-                              child: Text(
-                                'CONNECTED',
-                                style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.teal[700]),
-                              ),
-                            ),
-                          ]
-                        ],
-                      ),
-                      trailingWidget: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (state.status == PrinterStatus.scanning ||
-                              state.status == PrinterStatus.connecting)
-                            const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
-                          else
-                            IconButton(
-                              icon: const Icon(Icons.refresh),
-                              onPressed: () => context
-                                  .read<PrinterBloc>()
-                                  .add(RefreshPrinterEvent()),
-                              color: AppTheme.primaryColor,
-                            ),
-                          IconButton(
-                            icon: const Icon(Icons.settings),
-                            onPressed: () {
-                              AppSettings.openAppSettings(
-                                  type: AppSettingsType.bluetooth);
-                            },
-                            color: Colors.grey,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
+            _buildSection(
+              'Hardware',
+              [
+                _buildBoxButton('Printer Connection', () {
+                  AppSettings.openAppSettings(type: AppSettingsType.bluetooth);
+                  context.read<PrinterBloc>().add(InitPrinterEvent());
+                }),
+              ],
             ),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Text(
-                "To connect a new device, tap on the Settings gear to pair in phone's Bluetooth settings, then return and hit Refresh.",
-                style: TextStyle(
-                    fontSize: 11,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.grey[500]),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Cloud and Security Section
-            _buildSectionHeader('Cloud & Security'),
+            // Cloud & Security Section
             ValueListenableBuilder<SyncHealth>(
               valueListenable: SyncManager.syncHealthNotifier,
               builder: (context, health, _) {
                 final lastSyncText = health.lastSyncAt == null
-                    ? 'Not synced yet'
-                    : DateFormat('dd MMM yyyy, hh:mm a')
-                        .format(health.lastSyncAt!);
-                final statusText = health.status.toUpperCase();
+                    ? 'Never synced'
+                    : 'Last Sync: ${DateFormat('dd MMM yyyy, hh:mm a').format(health.lastSyncAt!)}';
 
-                return Column(
-                  children: [
-                    _buildListGroup(
-                      children: [
-                        _buildListItem(
-                          icon: Icons.cloud_done_outlined,
-                          title: 'Last Sync',
-                          subtitle: '$lastSyncText • $statusText',
-                          trailingIcon: null,
-                        ),
-                        _buildDivider(),
-                        _buildListItem(
-                          icon: Icons.sync,
-                          title: 'Force Sync Now',
-                          subtitle:
-                              'Pull latest sales, stock and supplier data',
-                          onTap: _forceSyncNow,
-                        ),
-                        if (health.missingTables.isNotEmpty) ...[
-                          _buildDivider(),
-                          _buildListItem(
-                            icon: Icons.warning_amber_outlined,
-                            title: 'Missing Cloud Tables',
-                            subtitle: health.missingTables.join(', '),
-                            trailingIcon: null,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardTheme.color,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Cloud & Security',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(lastSyncText,
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color!
+                                  .withOpacity(0.7),
+                              fontSize: 12)),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _forceSyncNow,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F172A),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                        ],
-                        _buildDivider(),
-                        _buildListItem(
-                          icon: Icons.logout,
-                          title: 'Logout',
-                          subtitle:
-                              'Sign out of ${Supabase.instance.client.auth.currentUser?.email ?? 'account'}',
-                          onTap: () async {
+                          child: const Text('Force Sync',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () async {
                             await Supabase.instance.client.auth.signOut();
                             if (context.mounted) context.go('/login');
                           },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF3B30),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('Logout',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Standard Outlined Back Button below Logout as requested
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => context.pop(),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6)),
+                            side: BorderSide(
+                                color: Theme.of(context)
+                                    .dividerColor
+                                    .withOpacity(0.1)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('Back',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
-
-            const SizedBox(height: 48),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          title.toUpperCase(),
-          style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-              letterSpacing: 1.2),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildListGroup({required List<Widget> children}) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[100]!),
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Divider(height: 1, thickness: 1, color: Colors.grey[50], indent: 64);
-  }
-
-  Widget _buildListItem({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    Widget? subtitleWidget,
-    Widget? trailingWidget,
-    IconData? trailingIcon = Icons.chevron_right,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: AppTheme.primaryColor, size: 20),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.grey[500])),
-                  ],
-                  if (subtitleWidget != null) ...[
-                    const SizedBox(height: 4),
-                    subtitleWidget,
-                  ]
-                ],
-              ),
-            ),
-            if (trailingWidget != null)
-              trailingWidget
-            else if (trailingIcon != null)
-              Icon(trailingIcon, color: Colors.grey[300]),
           ],
         ),
       ),

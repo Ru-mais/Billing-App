@@ -244,9 +244,11 @@ class _ProductListPageState extends State<ProductListPage> {
                     final product = filteredProducts[index];
                     return Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: borderColor),
+                        color: Theme.of(context).cardTheme.color,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Theme.of(context).cardTheme.shape is RoundedRectangleBorder
+                            ? Border.fromBorderSide((Theme.of(context).cardTheme.shape as RoundedRectangleBorder).side)
+                            : Border.all(color: Colors.transparent),
                         boxShadow: const [
                           BoxShadow(
                               color: Colors.black12,

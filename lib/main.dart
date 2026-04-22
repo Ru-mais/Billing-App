@@ -11,6 +11,7 @@ import 'features/shop/presentation/bloc/shop_bloc.dart';
 import 'features/settings/presentation/bloc/printer_bloc.dart';
 import 'features/settings/presentation/bloc/printer_event.dart';
 import 'core/utils/sync_manager.dart';
+import 'features/settings/presentation/bloc/theme_bloc.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -104,6 +105,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider<ThemeBloc>(
+            create: (context) => ThemeBloc()..add(LoadTheme())),
         BlocProvider<ProductBloc>(
             create: (context) => di.sl<ProductBloc>()..add(LoadProducts())),
         BlocProvider<ShopBloc>(
@@ -114,11 +117,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         BlocProvider<PrinterBloc>(
             create: (context) => di.sl<PrinterBloc>()..add(InitPrinterEvent())),
       ],
-      child: MaterialApp.router(
-        title: 'billo',
-        theme: AppTheme.lightTheme,
-        routerConfig: router,
-        debugShowCheckedModeBanner: false,
+      child: BlocBuilder<ThemeBloc, ThemeState>(
+        builder: (context, state) {
+          return MaterialApp.router(
+            title: 'Bilby',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: state.themeMode,
+            routerConfig: router,
+            debugShowCheckedModeBanner: false,
+          );
+        },
       ),
     );
   }

@@ -236,24 +236,26 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
             gstIn: event.gstIn,
             customerName: event.customerName,
             customerPhone: event.customerPhone,
+            logoPath: event.logoPath,
          );
       } else {
          // Thermal Print
-         await printerHelper.printReceipt(
-            shopName: event.shopName,
-            invoiceNo: saleId.substring(0, 8).toUpperCase(),
-            address1: event.address1,
-            address2: event.address2,
-            phone: event.phone,
-            items: itemsMapList,
-            netAmount: state.netAmount,
-            discountAmount: state.discountAmount,
-            total: state.totalAmount,
-            footer: event.footer,
-            gstIn: event.gstIn,
-            customerName: event.customerName,
-            customerPhone: event.customerPhone,
-         );
+          await printerHelper.printReceipt(
+             shopName: event.shopName,
+             invoiceNo: saleId.substring(0, 8).toUpperCase(),
+             address1: event.address1,
+             address2: event.address2,
+             phone: event.phone,
+             items: itemsMapList,
+             netAmount: state.netAmount,
+             discountAmount: state.discountAmount,
+             total: state.totalAmount,
+             footer: event.footer,
+             gstIn: event.gstIn,
+             customerName: event.customerName,
+             customerPhone: event.customerPhone,
+             logoPath: event.logoPath,
+          );
       }
 
       emit(state.copyWith(isPrinting: false, printSuccess: true));

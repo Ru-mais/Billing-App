@@ -49,6 +49,9 @@ dependencies:
   supabase_flutter: ^2.6.0
   archive: ^3.6.1
   path: ^1.9.0
+  image_picker: ^1.1.2
+  image: ^4.2.0
+  esc_pos_utils_plus: ^2.0.3
 
 dev_dependencies:
   flutter_test:
