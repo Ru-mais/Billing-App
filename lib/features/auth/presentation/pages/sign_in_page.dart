@@ -32,6 +32,16 @@ class _SignInPageState extends State<SignInPage> {
             .eq('id', response.user!.id)
             .single();
 
+        if (profile['is_banned'] == true) {
+          await Supabase.instance.client.auth.signOut();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Access Denied: You have been banned from using the app.')),
+            );
+          }
+          return;
+        }
+
         if (profile['is_paid'] == true) {
           await SyncManager.pullAll();
           if (mounted) context.go('/');

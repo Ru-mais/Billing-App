@@ -21,10 +21,38 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/presentation/pages/sign_in_page.dart';
 
+import 'dart:async';
+
 class SupabaseAuthRepository extends ChangeNotifier {
+  StreamSubscription? _profileSubscription;
+
   SupabaseAuthRepository() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (session != null) {
+        _listenToBanStatus(session.user.id);
+      } else {
+        _profileSubscription?.cancel();
+        _profileSubscription = null;
+      }
       notifyListeners();
+    });
+  }
+
+  void _listenToBanStatus(String userId) {
+    _profileSubscription?.cancel();
+    _profileSubscription = Supabase.instance.client
+        .from('profiles')
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .listen((List<Map<String, dynamic>> data) {
+      if (data.isNotEmpty) {
+        bool isBanned = data.first['is_banned'] ?? false;
+        if (isBanned) {
+          // Force logout immediately if banned
+          Supabase.instance.client.auth.signOut();
+        }
+      }
     });
   }
 }
