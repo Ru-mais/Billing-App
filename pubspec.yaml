@@ -68,6 +68,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/
 
 # App Icon Configuration
 flutter_launcher_icons:

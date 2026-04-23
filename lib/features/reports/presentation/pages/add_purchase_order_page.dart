@@ -9,6 +9,9 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/supplier_store.dart';
 import '../../data/models/purchase_order_model.dart';
 import '../../../product/data/models/product_model.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../product/presentation/bloc/product_bloc.dart';
+import 'package:intl/intl.dart';
 
 class AddPurchaseOrderPage extends StatefulWidget {
   const AddPurchaseOrderPage({super.key});
@@ -20,6 +23,7 @@ class AddPurchaseOrderPage extends StatefulWidget {
 class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   final _formKey = GlobalKey<FormState>();
   final _supplierController = TextEditingController();
+  final _supplierFocusNode = FocusNode();
   final _paidAmountController = TextEditingController(text: '0');
   final _notesController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
@@ -32,7 +36,16 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   void initState() {
     super.initState();
     _suppliers = SupplierStore.getAll();
-    _addItem(); // Start with one empty row
+    _addItem(); 
+  }
+
+  @override
+  void dispose() {
+    _supplierController.dispose();
+    _supplierFocusNode.dispose();
+    _paidAmountController.dispose();
+    _notesController.dispose();
+    super.dispose();
   }
 
   void _addItem() {
@@ -48,11 +61,13 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
   }
 
   double get _calculatedTotal {
-    return _items.fold(0.0, (sum, row) {
+    double total = 0;
+    for (final row in _items) {
       final qty = int.tryParse(row.qtyController.text) ?? 0;
       final cost = double.tryParse(row.costController.text) ?? 0.0;
-      return sum + (qty * cost);
-    });
+      total += (qty * cost);
+    }
+    return total;
   }
 
   Future<void> _pickDate() async {
@@ -69,8 +84,11 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    
     final paidAmount = double.tryParse(_paidAmountController.text.trim()) ?? 0;
-    if (paidAmount < 0 || paidAmount > _calculatedTotal) {
+    final totalAmount = _calculatedTotal;
+
+    if (paidAmount < 0 || paidAmount > totalAmount) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Paid amount must be between 0 and total amount.'),
         backgroundColor: Colors.red,
@@ -78,76 +96,78 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
       return;
     }
 
-    // Validate at least one item is filled
     final filledItems = _items.where((row) =>
-        row.nameController.text.trim().isNotEmpty &&
+        row.productId != null &&
         (int.tryParse(row.qtyController.text) ?? 0) > 0 &&
-        (double.tryParse(row.costController.text) ?? 0) > 0);
+        (double.tryParse(row.costController.text) ?? 0) > 0).toList();
 
     if (filledItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Please add at least one valid item.'),
+        content: Text('Please add at least one valid product with quantity and cost.'),
         backgroundColor: Colors.red,
       ));
       return;
     }
 
-    // Check if any product is not created
-    final hasUncreatedProducts = filledItems.any((row) => row.productId == null);
-    if (hasUncreatedProducts) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Some products are not created. Please create them first.'),
-        backgroundColor: Colors.orange,
-      ));
-      return;
+    // Size Validation
+    for (var row in filledItems) {
+      if (row.isSizeSpecific && row.selectedSize == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Please pick a size for ${row.nameController.text}'),
+          backgroundColor: Colors.orange,
+        ));
+        return;
+      }
     }
 
     setState(() => _isSaving = true);
 
     try {
       final List<PurchaseItemModel> purchaseItems = [];
+      // Use a local map to track product updates to handle multiple sizes of the same product
+      final Map<String, ProductModel> productsToUpdate = {};
 
       for (final row in filledItems) {
         final qty = int.parse(row.qtyController.text);
         final cost = double.parse(row.costController.text);
+        final pid = row.productId!;
 
-        // If it's a known product, we automatically update SIT (Stock in Trade)
-        if (row.productId != null) {
-          final product = HiveDatabase.productBox.get(row.productId);
-          if (product != null) {
-            ProductModel updatedProduct;
-
-            if (product.isSizeSpecific && row.selectedSize != null) {
-              // Restock specific size
-              final currentStock = product.sizeStocks[row.selectedSize] ?? 0;
-              final updatedStocks = Map<String, int>.from(product.sizeStocks);
-              updatedStocks[row.selectedSize!] = currentStock + qty;
-              
-              updatedProduct = product.copyWith(
-                sizeStocks: updatedStocks,
-                purchasedRate: cost, // Auto-update purchased rate
-              );
-            } else {
-              // Restock unified product
-              updatedProduct = product.copyWith(
-                baseStock: product.baseStock + qty,
-                purchasedRate: cost,
-              );
-            }
-
-            // Save and Sync updated product
-            await HiveDatabase.productBox.put(updatedProduct.id, updatedProduct);
-            SyncManager.pushProduct(updatedProduct);
+        // Load from our tracker first, then from DB
+        ProductModel? product = productsToUpdate[pid] ?? HiveDatabase.productBox.get(pid);
+        
+        if (product != null) {
+          if (product.isSizeSpecific && row.selectedSize != null) {
+            final currentStock = product.sizeStocks[row.selectedSize] ?? 0;
+            final updatedStocks = Map<String, int>.from(product.sizeStocks);
+            updatedStocks[row.selectedSize!] = currentStock + qty;
+            product = product.copyWith(
+              sizeStocks: updatedStocks, 
+              purchasedRate: cost,
+            );
+          } else {
+            product = product.copyWith(
+              baseStock: product.baseStock + qty, 
+              purchasedRate: cost,
+            );
           }
+          // Store in tracker
+          productsToUpdate[pid] = product;
         }
 
         purchaseItems.add(PurchaseItemModel(
           productName: row.nameController.text.trim(),
           quantity: qty,
           unitCost: cost,
-          productId: row.productId,
+          productId: pid,
           size: row.selectedSize,
         ));
+      }
+
+      // Now save all updated products to Hive
+      for (final pid in productsToUpdate.keys) {
+        final up = productsToUpdate[pid]!;
+        await HiveDatabase.productBox.put(pid, up);
+        SyncManager.pushProduct(up);
       }
 
       final order = PurchaseOrderModel(
@@ -155,27 +175,26 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
         timestamp: _selectedDate,
         supplierName: _supplierController.text.trim(),
         items: purchaseItems,
-        totalAmount: _calculatedTotal,
+        totalAmount: totalAmount,
         notes: _notesController.text.trim(),
       );
 
       await HiveDatabase.purchaseOrdersBox.add(order);
-
       await SupplierStore.addPurchaseBill(
         supplierName: _supplierController.text.trim(),
-        billAmount: _calculatedTotal,
+        billAmount: totalAmount,
         paidAmount: paidAmount,
         date: _selectedDate,
-        note: 'Purchase Order',
+        note: _notesController.text.trim().isEmpty ? 'Purchase Order' : _notesController.text.trim(),
         purchaseOrderId: order.id,
       );
       
-      // Sync Purchase Order to Cloud
       SyncManager.pushPurchaseOrder(order);
+      if (mounted) context.read<ProductBloc>().add(LoadProducts());
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Restock successful! Inventory levels updated.'),
+          content: Text('Stock updated successfully!'),
           backgroundColor: Colors.green,
         ));
         context.pop();
@@ -183,7 +202,7 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Restock error: $e'),
+          content: Text('Error: $e'),
           backgroundColor: Colors.red,
         ));
       }
@@ -192,235 +211,101 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     }
   }
 
-  String _generateBarcode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = Random();
-    return List.generate(
-            9, (index) => chars[random.nextInt(chars.length)])
-        .join();
-  }
-
-  String _generateUniqueBarcode() {
-    String newBarcode;
-    bool exists;
-    do {
-      newBarcode = _generateBarcode();
-      exists = HiveDatabase.productBox.values.any((p) => p.barcode == newBarcode);
-    } while (exists);
-    return newBarcode;
-  }
-
   void _showQuickAddProductDialog(_ItemRow row) {
-    final name = row.nameController.text.trim();
-    final nameCtrl = TextEditingController(text: name);
+    final nameCtrl = TextEditingController(text: row.nameController.text.trim());
     final barcodeCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
-    final rateCtrl = TextEditingController(text: row.costController.text);
+    
+    final existingCategories = {
+      ...HiveDatabase.categoryBox.values,
+      ...HiveDatabase.productBox.values.map((p) => p.category),
+    }.where((c) => c.isNotEmpty).toList();
+    
     String? selectedCategory;
+    bool isSizeSpecific = true;
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
+      builder: (context) => StatefulBuilder(builder: (context, setDS) {
         return AlertDialog(
           title: const Text('Add New Product'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('This product is not in your list. Let\'s add it.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: _inputDec(label: 'Product Name', icon: Icons.abc),
-                ),
+                TextField(controller: nameCtrl, decoration: _inputDec(label: 'Name', icon: Icons.abc)),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: barcodeCtrl,
-                        decoration:
-                            _inputDec(label: 'Barcode', icon: Icons.qr_code),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner,
-                            color: AppTheme.primaryColor),
-                        onPressed: () async {
-                          final result = await context.push<String>('/scanner');
-                          if (result != null && result.isNotEmpty) {
-                            barcodeCtrl.text = result;
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.auto_fix_high,
-                            color: AppTheme.primaryColor),
-                        onPressed: () {
-                          barcodeCtrl.text = _generateUniqueBarcode();
-                        },
-                        tooltip: 'Generate Barcode',
+                TextField(controller: barcodeCtrl, decoration: _inputDec(label: 'Barcode (Optional)', icon: Icons.qr_code)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  decoration: _inputDec(label: 'Category', icon: Icons.category),
+                  hint: const Text('Pick Category'),
+                  items: [
+                    ...existingCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                    const DropdownMenuItem(
+                      value: '__add_new__',
+                      child: Row(
+                        children: [
+                          Icon(Icons.add, size: 16, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Text('Add New...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                        ],
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  decoration: _inputDec(label: 'Category', icon: Icons.category),
-                  items: HiveDatabase.categoryBox.values
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  initialValue: selectedCategory,
-                  onChanged: (val) => selectedCategory = val,
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      final newCategoryCtrl = TextEditingController();
-                      final created = await showDialog<String>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Create Category'),
-                          content: TextField(
-                            controller: newCategoryCtrl,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: const InputDecoration(
-                              hintText: 'Enter category name',
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                final value = newCategoryCtrl.text.trim();
-                                if (value.isEmpty) return;
-                                Navigator.pop(ctx, value);
-                              },
-                              child: const Text('Create'),
-                            ),
-                          ],
-                        ),
-                      );
-
-                      if (created == null || created.trim().isEmpty) return;
-                      final newCategory = created.trim();
-                      final alreadyExists = HiveDatabase.categoryBox.values.any(
-                        (c) => c.toLowerCase() == newCategory.toLowerCase(),
-                      );
-                      if (!alreadyExists) {
-                        await HiveDatabase.categoryBox.add(newCategory);
+                  onChanged: (v) async {
+                    if (v == '__add_new__') {
+                      final newCat = await _showCreateCategoryDialog();
+                      if (newCat != null && newCat.isNotEmpty) {
+                        // Persist to Category Box so it shows up next time too
+                        await HiveDatabase.categoryBox.add(newCat);
+                        setDS(() {
+                          if (!existingCategories.contains(newCat)) existingCategories.add(newCat);
+                          selectedCategory = newCat;
+                        });
                       }
-                      setDialogState(() {
-                        selectedCategory = HiveDatabase.categoryBox.values.firstWhere(
-                          (c) => c.toLowerCase() == newCategory.toLowerCase(),
-                          orElse: () => newCategory,
-                        );
-                      });
-                    },
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Create category'),
-                  ),
+                    } else {
+                      setDS(() => selectedCategory = v);
+                    }
+                  },
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: priceCtrl,
-                  decoration:
-                      _inputDec(label: 'Selling Price', icon: Icons.payments),
-                  keyboardType: TextInputType.number,
+                TextField(controller: priceCtrl, decoration: _inputDec(label: 'Sale Price', icon: Icons.payments), keyboardType: TextInputType.number),
+                SwitchListTile(
+                  title: const Text('Has Sizes?'),
+                  value: isSizeSpecific,
+                  onChanged: (val) => setDS(() => isSizeSpecific = val),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                final newBarcode = barcodeCtrl.text.trim();
-                if (selectedCategory == null ||
-                    priceCtrl.text.isEmpty ||
-                    nameCtrl.text.isEmpty ||
-                    newBarcode.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Please fill all mandatory fields'),
-                        backgroundColor: Colors.red),
-                  );
-                  return;
-                }
-                if (newBarcode.length < 9) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Barcode must be at least 9 characters'),
-                        backgroundColor: Colors.red),
-                  );
-                  return;
-                }
-                if (newBarcode.isNotEmpty) {
-                  final barcodeExists = HiveDatabase.productBox.values.any(
-                    (product) =>
-                        product.barcode.trim().isNotEmpty &&
-                        product.barcode.trim().toLowerCase() ==
-                            newBarcode.toLowerCase(),
-                  );
-                  if (barcodeExists) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Barcode already exists. Please use a different barcode.'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-                }
+                if (nameCtrl.text.isEmpty || priceCtrl.text.isEmpty || selectedCategory == null) return;
                 final newProduct = ProductModel(
                   id: const Uuid().v4(),
                   name: nameCtrl.text.trim(),
-                  barcode: barcodeCtrl.text.trim(),
+                  barcode: barcodeCtrl.text.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : barcodeCtrl.text,
                   category: selectedCategory!,
                   price: double.parse(priceCtrl.text),
-                  purchasedRate: double.tryParse(rateCtrl.text) ?? 0.0,
+                  purchasedRate: double.tryParse(row.costController.text) ?? 0.0,
                   sizeStocks: {},
-                  isSizeSpecific: true, // Default to size specific
+                  isSizeSpecific: isSizeSpecific,
                   baseStock: 0,
                 );
-
                 await HiveDatabase.productBox.put(newProduct.id, newProduct);
                 SyncManager.pushProduct(newProduct);
-
+                if (mounted) context.read<ProductBloc>().add(LoadProducts());
                 setState(() {
                   row.productId = newProduct.id;
                   row.nameController.text = newProduct.name;
-                  if (newProduct.isSizeSpecific) {
-                    row.isSizeSpecific = true;
-                  }
+                  row.isSizeSpecific = newProduct.isSizeSpecific;
                 });
                 if (context.mounted) Navigator.pop(context);
               },
-              child: const Text('Create'),
+              child: const Text('Add'),
             ),
           ],
         );
@@ -428,506 +313,249 @@ class _AddPurchaseOrderPageState extends State<AddPurchaseOrderPage> {
     );
   }
 
+  Future<String?> _showCreateCategoryDialog() async {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Category'),
+        content: TextField(
+          controller: ctrl, 
+          decoration: const InputDecoration(hintText: 'Enter category name (e.g. Shoes)'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Create')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Purchase Order',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.chevron_left,
-              size: 28, color: Theme.of(context).primaryColor),
-          onPressed: () => context.pop(),
-        ),
-      ),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(title: const Text('Restock Inventory')),
       body: Form(
         key: _formKey,
         child: Column(
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Supplier & Date ─────────────────────────────────
-                    _sectionLabel('ORDER DETAILS'),
-                    const SizedBox(height: 8),
-                    _card(
-                      child: Column(
-                        children: [
-                          RawAutocomplete<String>(
-                            textEditingController: _supplierController,
-                            focusNode: FocusNode(),
-                            optionsBuilder: (textValue) {
-                              final query = textValue.text.trim().toLowerCase();
-                              if (query.isEmpty) return const Iterable<String>.empty();
-                              return _suppliers
-                                  .map((item) => item.name)
-                                  .where((name) =>
-                                      name.toLowerCase().contains(query))
-                                  .toSet()
-                                  .toList();
-                            },
-                            onSelected: (value) {
-                              _supplierController.text = value;
-                            },
-                            fieldViewBuilder: (context, controller, focusNode, _) {
-                              return TextFormField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                decoration: _inputDec(
-                                  label: 'Supplier Name',
-                                  icon: Icons.store_outlined,
-                                ),
-                                textCapitalization: TextCapitalization.words,
-                                validator: (v) => (v == null || v.trim().isEmpty)
-                                    ? 'Enter supplier name'
-                                    : null,
-                              );
-                            },
-                            optionsViewBuilder: (context, onSelected, options) {
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 4,
-                                  child: SizedBox(
-                                    width: MediaQuery.of(context).size.width - 64,
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.zero,
-                                      shrinkWrap: true,
-                                      itemCount: options.length,
-                                      itemBuilder: (context, index) {
-                                        final option = options.elementAt(index);
-                                        return ListTile(
-                                          dense: true,
-                                          title: Text(option),
-                                          onTap: () => onSelected(option),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          InkWell(
-                            onTap: _pickDate,
-                            borderRadius: BorderRadius.circular(12),
-                            child: InputDecorator(
-                              decoration: _inputDec(
-                                label: 'Order Date',
-                                icon: Icons.calendar_today_outlined,
-                              ),
-                              child: Text(
-                                '${_selectedDate.day.toString().padLeft(2, '0')} / '
-                                '${_selectedDate.month.toString().padLeft(2, '0')} / '
-                                '${_selectedDate.year}',
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _paidAmountController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: _inputDec(
-                              label: 'Paid Amount (optional)',
-                              icon: Icons.account_balance_outlined,
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return null;
-                              }
-                              final parsed = double.tryParse(value);
-                              if (parsed == null || parsed < 0) {
-                                return 'Enter valid paid amount';
-                              }
-                              return null;
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // ── Items ─────────────────────────────────────────────
-                    _sectionLabel('ITEMS PURCHASED'),
-                    const SizedBox(height: 8),
-
-                    ..._items.asMap().entries.map((entry) {
-                      final i = entry.key;
-                      final row = entry.value;
-                      return _card(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text('Item ${i + 1}',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          color: AppTheme.primaryColor)),
-                                ),
-                                if (_items.length > 1)
-                                  IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline,
-                                        color: Colors.red, size: 20),
-                                    onPressed: () => _removeItem(i),
-                                    constraints: const BoxConstraints(),
-                                    padding: EdgeInsets.zero,
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-
-                            // ── Product Search ───────────────────────────────
-                            RawAutocomplete<ProductModel>(
-                              textEditingController: row.nameController,
-                              focusNode: FocusNode(),
-                              optionsBuilder: (TextEditingValue textValue) {
-                                if (textValue.text.isEmpty) {
-                                  return const Iterable<ProductModel>.empty();
-                                }
-                                return HiveDatabase.productBox.values.where(
-                                    (p) =>
-                                        p.name.toLowerCase().contains(
-                                            textValue.text.toLowerCase()) ||
-                                        p.barcode.contains(textValue.text));
-                              },
-                              displayStringForOption: (option) => option.name,
-                              onSelected: (option) {
-                                setState(() {
-                                  row.productId = option.id;
-                                  row.isSizeSpecific = option.isSizeSpecific;
-                                  row.costController.text =
-                                      option.purchasedRate.toString();
-                                });
-                              },
-                              fieldViewBuilder: (context, controller, focusNode,
-                                  onFieldSubmitted) {
-                                return TextFormField(
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  decoration: _inputDec(
-                                    label: 'Product Name',
-                                    icon: Icons.inventory_2_outlined,
-                                  ).copyWith(
-                                    suffixIcon: row.productId == null &&
-                                            row.nameController.text.isNotEmpty
-                                        ? IconButton(
-                                            icon: const Icon(Icons.add_business,
-                                                color: Colors.orange),
-                                            onPressed: () =>
-                                                _showQuickAddProductDialog(row),
-                                            tooltip: 'Create New Product',
-                                          )
-                                        : (row.productId != null
-                                            ? const Icon(Icons.verified,
-                                                color: Colors.green, size: 16)
-                                            : null),
-                                  ),
-                                  onChanged: (val) {
-                                    if (row.productId != null) {
-                                      setState(() {
-                                        row.productId = null;
-                                        row.selectedSize = null;
-                                      });
-                                    }
-                                  },
-                                );
-                              },
-                              optionsViewBuilder:
-                                  (context, onSelected, options) {
-                                return Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Material(
-                                    elevation: 4,
-                                    child: SizedBox(
-                                      width: MediaQuery.of(context).size.width -
-                                          64,
-                                      child: ListView.builder(
-                                        shrinkWrap: true,
-                                        itemCount: options.length,
-                                        itemBuilder: (context, index) {
-                                          final option =
-                                              options.elementAt(index);
-                                          return ListTile(
-                                            title: Text(option.name),
-                                            subtitle: Text(
-                                                'Stock: ${option.isSizeSpecific ? 'Multi-size' : option.baseStock}'),
-                                            onTap: () => onSelected(option),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // ── Size Toggle ───────────────────────────────
-                            SwitchListTile(
-                              title: const Text('Specify Sizes',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600)),
-                              value: row.isSizeSpecific,
-                              onChanged: (val) =>
-                                  setState(() => row.isSizeSpecific = val),
-                              activeThumbColor: AppTheme.primaryColor,
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                            ),
-
-                            // ── Size & Qty & Cost ──────────────────────────
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (row.isSizeSpecific)
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: row.selectedSize,
-                                      decoration: _inputDec(
-                                          label: 'Size', icon: Icons.straighten),
-                                      items: const [
-                                        '6', '7', '8', '9', '10', '11'
-                                      ].map((s) => DropdownMenuItem(
-                                          value: s, child: Text(s))).toList(),
-                                      onChanged: (val) =>
-                                          setState(() => row.selectedSize = val),
-                                      validator: (val) =>
-                                          (row.isSizeSpecific && val == null)
-                                              ? 'Pick size'
-                                              : null,
-                                    ),
-                                  ),
-                                if (row.isSizeSpecific) const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: row.qtyController,
-                                    decoration: _inputDec(
-                                        label: 'Qty', icon: Icons.numbers),
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (_) => setState(() {}),
-                                    validator: (val) => (val == null ||
-                                            int.tryParse(val) == null)
-                                        ? 'Error'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: row.costController,
-                                    decoration: _inputDec(
-                                        label: 'Cost',
-                                        icon: Icons.currency_rupee),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                            decimal: true),
-                                    onChanged: (_) => setState(() {}),
-                                    validator: (val) => (val == null ||
-                                            double.tryParse(val) == null)
-                                        ? 'Error'
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            // Line total
-                            Builder(builder: (_) {
-                              final qty =
-                                  int.tryParse(row.qtyController.text) ?? 0;
-                              final cost =
-                                  double.tryParse(row.costController.text) ??
-                                      0.0;
-                              final lineTotal = qty * cost;
-                              return Align(
-                                alignment: Alignment.centerRight,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    'Line Total: ₹${lineTotal.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      );
-                    }),
-
-                    // Add item button
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: OutlinedButton.icon(
-                        onPressed: _addItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Another Item'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.primaryColor,
-                          side: BorderSide(color: AppTheme.primaryColor),
-                          minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // ── Notes ─────────────────────────────────────────────
-                    _sectionLabel('NOTES (OPTIONAL)'),
-                    const SizedBox(height: 8),
-                    _card(
-                      child: TextFormField(
-                        controller: _notesController,
-                        maxLines: 3,
-                        decoration: _inputDec(
-                            label: 'Notes', icon: Icons.notes_outlined),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Bottom bar ────────────────────────────────────────────────
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 12,
-                      offset: const Offset(0, -4))
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('TOTAL AMOUNT',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                              letterSpacing: 1.0)),
-                      Text(
-                        '₹${_calculatedTotal.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _save,
-                      icon: _isSaving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.save_outlined),
-                      label:
-                          Text(_isSaving ? 'Saving…' : 'Save Purchase Order'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        textStyle: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
+                  _card(child: Column(children: [
+                    _buildSupplierField(),
+                    const SizedBox(height: 12),
+                    _buildDateField(),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _paidAmountController, 
+                      decoration: _inputDec(label: 'Paid to Supplier', icon: Icons.payments), 
+                      keyboardType: TextInputType.number
                     ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _notesController,
+                      decoration: _inputDec(label: 'Notes (Optional)', icon: Icons.note_alt_outlined),
+                    ),
+                  ])),
+                  const SizedBox(height: 20),
+                  const Text('PRODUCTS TO RESTOCK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                  const SizedBox(height: 8),
+                  ..._items.asMap().entries.map((e) => _buildItemRow(e.value, e.key)),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _addItem, 
+                    icon: const Icon(Icons.add), 
+                    label: const Text('Add Product'),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ],
               ),
             ),
+            _buildBottomBar(),
           ],
         ),
       ),
     );
   }
 
-  Widget _sectionLabel(String text) {
-    return Text(text,
-        style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey,
-            letterSpacing: 1.2));
+  Widget _buildSupplierField() {
+    return RawAutocomplete<String>(
+      textEditingController: _supplierController,
+      focusNode: _supplierFocusNode,
+      optionsBuilder: (v) => _suppliers.map((s) => s.name).where((n) => n.toLowerCase().contains(v.text.toLowerCase())),
+      fieldViewBuilder: (ctx, ctrl, focus, _) => TextFormField(
+        controller: ctrl, focusNode: focus,
+        decoration: _inputDec(label: 'Supplier Name', icon: Icons.person),
+        validator: (v) => v!.isEmpty ? 'Required' : null,
+      ),
+      optionsViewBuilder: (context, onSelected, options) => Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 200, maxWidth: 300),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: options.length,
+              itemBuilder: (ctx, i) {
+                final opt = options.elementAt(i);
+                return ListTile(dense: true, title: Text(opt), onTap: () => onSelected(opt));
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateField() {
+    return InkWell(
+      onTap: _pickDate,
+      child: InputDecorator(
+        decoration: _inputDec(label: 'Date', icon: Icons.calendar_today),
+        child: Text(DateFormat('dd / MM / yyyy').format(_selectedDate)),
+      ),
+    );
+  }
+
+  Widget _buildItemRow(_ItemRow row, int index) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: _card(child: Column(children: [
+        Row(children: [
+          Expanded(child: RawAutocomplete<ProductModel>(
+            textEditingController: row.nameController,
+            focusNode: row.focusNode,
+            optionsBuilder: (v) => v.text.isEmpty ? [] : HiveDatabase.productBox.values.where((p) => p.name.toLowerCase().contains(v.text.toLowerCase()) || p.barcode.contains(v.text)),
+            displayStringForOption: (p) => p.name,
+            onSelected: (p) => setState(() {
+              row.productId = p.id;
+              row.nameController.text = p.name;
+              row.isSizeSpecific = p.isSizeSpecific;
+              row.costController.text = p.purchasedRate.toString();
+            }),
+            fieldViewBuilder: (ctx, ctrl, focus, _) {
+              return TextField(
+                controller: ctrl, focusNode: focus,
+                decoration: _inputDec(label: 'Search Product', icon: Icons.search).copyWith(
+                  suffixIcon: row.productId != null 
+                    ? TextButton(onPressed: () {
+                        final nr = _ItemRow();
+                        nr.productId = row.productId;
+                        nr.nameController.text = row.nameController.text;
+                        nr.isSizeSpecific = row.isSizeSpecific;
+                        nr.costController.text = row.costController.text;
+                        setState(() => _items.insert(index + 1, nr));
+                      }, child: const Text('+ SIZE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))
+                    : IconButton(icon: const Icon(Icons.add_box_outlined, color: Colors.blue), onPressed: () => _showQuickAddProductDialog(row)),
+                ),
+              );
+            },
+            optionsViewBuilder: (context, onSelected, options) => Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(12),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 200, maxWidth: 300),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (ctx, i) {
+                      final opt = options.elementAt(i);
+                      return ListTile(
+                        dense: true,
+                        title: Text(opt.name),
+                        subtitle: Text('Cat: ${opt.category}', style: const TextStyle(fontSize: 10)),
+                        onTap: () => onSelected(opt),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          )),
+          if (_items.length > 1) IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => _removeItem(index)),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          if (row.isSizeSpecific) Expanded(child: DropdownButtonFormField<String>(
+            value: row.selectedSize,
+            decoration: _inputDec(label: 'Size', icon: Icons.straighten),
+            hint: const Text('Size'),
+            items: ['6','7','8','9','10','11'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+            onChanged: (v) => setState(() => row.selectedSize = v),
+          )),
+          if (row.isSizeSpecific) const SizedBox(width: 8),
+          Expanded(child: TextFormField(controller: row.qtyController, decoration: _inputDec(label: 'Qty', icon: Icons.plus_one), keyboardType: TextInputType.number, onChanged: (_) => setState((){}))),
+          const SizedBox(width: 8),
+          Expanded(child: TextFormField(controller: row.costController, decoration: _inputDec(label: 'Rate', icon: Icons.currency_rupee), keyboardType: TextInputType.number, onChanged: (_) => setState((){}))),
+        ]),
+      ])),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]
+      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          const Text('ORDER TOTAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+          Text('₹${_calculatedTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue)),
+        ])),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _save,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryColor, 
+            foregroundColor: Colors.white, 
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16), 
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+          ),
+          child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('SAVE RESTOCK'),
+        ),
+      ]),
+    );
   }
 
   Widget _card({required Widget child}) {
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ]),
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16), 
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]
+      ),
       child: child,
     );
   }
 
   InputDecoration _inputDec({required String label, required IconData icon}) {
     return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, size: 18, color: AppTheme.primaryColor),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppTheme.primaryColor, width: 1.5)),
+      labelText: label, prefixIcon: Icon(icon, size: 18),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      filled: true, fillColor: Colors.grey[50],
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
   }
 }
 
-/// Simple data holder for each item row's controllers.
 class _ItemRow {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController qtyController = TextEditingController();
-  final TextEditingController costController = TextEditingController();
   String? productId;
+  final nameController = TextEditingController();
+  final focusNode = FocusNode();
+  final qtyController = TextEditingController(text: '1');
+  final costController = TextEditingController(text: '0');
   String? selectedSize;
   bool isSizeSpecific = true;
 }

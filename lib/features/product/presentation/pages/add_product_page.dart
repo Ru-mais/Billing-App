@@ -128,32 +128,23 @@ class _AddProductPageState extends State<AddProductPage> {
     }
   }
 
-  void _showAddCategoryDialog() {
+  Future<String?> _showCreateCategoryDialogDirect() async {
     final TextEditingController ctrl = TextEditingController();
-    showDialog(
+    return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Category'),
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Category'),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(hintText: 'Category Name'),
+          decoration: const InputDecoration(hintText: 'Enter category name (e.g. Shoes)'),
+          autofocus: true,
           textCapitalization: TextCapitalization.words,
         ),
         actions: [
-          TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              final name = ctrl.text.trim();
-              if (name.isNotEmpty) {
-                if (!HiveDatabase.categoryBox.values.contains(name)) {
-                  HiveDatabase.categoryBox.add(name);
-                  SyncManager.syncCategories();
-                }
-                setState(() => _selectedCategory = name);
-                context.pop();
-              }
-            },
-            child: const Text('Add'),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Create'),
           ),
         ],
       ),
@@ -211,25 +202,45 @@ class _AddProductPageState extends State<AddProductPage> {
                           
                           const Text('Select Category', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
                           const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ValueListenableBuilder(
-                                  valueListenable: HiveDatabase.categoryBox.listenable(),
-                                  builder: (context, box, _) {
-                                    final list = box.values.toList();
-                                    return DropdownButtonFormField<String>(
-                                      value: _selectedCategory,
-                                      items: list.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                                      onChanged: (v) => setState(() => _selectedCategory = v),
-                                      decoration: _fieldDecoration('Category'),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              _buildCircularAddButton(_showAddCategoryDialog),
-                            ],
+                          ValueListenableBuilder(
+                            valueListenable: HiveDatabase.categoryBox.listenable(),
+                            builder: (context, box, _) {
+                              final boxCats = box.values.map((s) => s.toString()).toList();
+                              final productCats = HiveDatabase.productBox.values.map((p) => p.category).toList();
+                              final allCats = {...boxCats, ...productCats}.toList()..sort();
+                              
+                              return DropdownButtonFormField<String>(
+                                value: allCats.contains(_selectedCategory) ? _selectedCategory : null,
+                                decoration: _fieldDecoration('Category'),
+                                items: [
+                                  ...allCats.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                                  const DropdownMenuItem(
+                                    value: '__add_new__',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.add, size: 16, color: Colors.blue),
+                                        SizedBox(width: 8),
+                                        Text('Add New...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (v) async {
+                                  if (v == '__add_new__') {
+                                    final newCat = await _showCreateCategoryDialogDirect();
+                                    if (newCat != null && newCat.isNotEmpty) {
+                                      if (!HiveDatabase.categoryBox.values.contains(newCat)) {
+                                        await HiveDatabase.categoryBox.add(newCat);
+                                        SyncManager.syncCategories();
+                                      }
+                                      setState(() => _selectedCategory = newCat);
+                                    }
+                                  } else {
+                                    setState(() => _selectedCategory = v);
+                                  }
+                                },
+                              );
+                            },
                           ),
                           const SizedBox(height: 20),
                           
@@ -381,17 +392,7 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   Widget _buildCircularAddButton(VoidCallback onTap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Icon(Icons.add, size: 20),
-      ),
-    );
+    // Replaced by inline Dropdown entry
+    return const SizedBox();
   }
 }

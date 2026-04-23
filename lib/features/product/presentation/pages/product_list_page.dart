@@ -100,7 +100,7 @@ class _ProductListPageState extends State<ProductListPage> {
                       const SizedBox(width: 12),
                       Container(
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                          color: AppTheme.primaryColor.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: IconButton(
@@ -113,7 +113,7 @@ class _ProductListPageState extends State<ProductListPage> {
                       const SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                          color: AppTheme.primaryColor.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: PopupMenuButton<ProductSortOption>(
@@ -147,7 +147,7 @@ class _ProductListPageState extends State<ProductListPage> {
                           onSelected: (selected) {
                             if (selected) setState(() => _selectedCategory = null);
                           },
-                          selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                          selectedColor: AppTheme.primaryColor.withOpacity(0.2),
                           checkmarkColor: AppTheme.primaryColor,
                         ),
                         const SizedBox(width: 8),
@@ -162,7 +162,7 @@ class _ProductListPageState extends State<ProductListPage> {
                                   _selectedCategory = selected ? cat : null;
                                 });
                               },
-                              selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                              selectedColor: AppTheme.primaryColor.withOpacity(0.2),
                               checkmarkColor: AppTheme.primaryColor,
                             ),
                           );
@@ -287,13 +287,13 @@ class _ProductListPageState extends State<ProductListPage> {
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
                                           color: e.value > 0
-                                              ? Colors.green.withValues(alpha: 0.1)
-                                              : Colors.red.withValues(alpha: 0.1),
+                                              ? Colors.green.withOpacity(0.1)
+                                              : Colors.red.withOpacity(0.1),
                                           borderRadius: BorderRadius.circular(6),
                                           border: Border.all(
                                             color: e.value > 0
-                                                ? Colors.green.withValues(alpha: 0.4)
-                                                : Colors.red.withValues(alpha: 0.4),
+                                                ? Colors.green.withOpacity(0.4)
+                                                : Colors.red.withOpacity(0.4),
                                           ),
                                         ),
                                         child: Text(
@@ -320,7 +320,7 @@ class _ProductListPageState extends State<ProductListPage> {
                             children: [
                               Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.blueGrey.withValues(alpha: 0.1),
+                                  color: Colors.blueGrey.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: IconButton(
@@ -335,7 +335,7 @@ class _ProductListPageState extends State<ProductListPage> {
                               Container(
                                 decoration: BoxDecoration(
                                   color: AppTheme.primaryColor
-                                      .withValues(alpha: 0.1),
+                                      .withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: IconButton(
@@ -352,7 +352,7 @@ class _ProductListPageState extends State<ProductListPage> {
                               const SizedBox(width: 8),
                               Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.red.withValues(alpha: 0.1),
+                                  color: Colors.red.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: IconButton(

@@ -34,7 +34,7 @@ class PrimaryButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
       ),
       elevation: elevation,
-      shadowColor: Theme.of(context).primaryColor.withValues(alpha: 0.4),
+      shadowColor: Theme.of(context).primaryColor.withOpacity(0.4),
       minimumSize: isFullWidth ? const Size.fromHeight(50) : null,
     );
 

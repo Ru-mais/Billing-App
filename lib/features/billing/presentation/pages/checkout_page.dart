@@ -62,7 +62,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = Theme.of(context).dividerColor.withValues(alpha: 0.1);
+    final borderColor = Theme.of(context).dividerColor.withOpacity(0.1);
     final cardBg = Theme.of(context).cardTheme.color;
 
     return PopScope(

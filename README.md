@@ -99,3 +99,10 @@ As a senior-focused project, please adhere to:
 1. **Clean Architecture Rules**: Maintain strict boundaries between `domain`, `data`, and `presentation` layers.
 2. **Immutable States**: Emit only immutable states from BLoCs utilizing `equatable`.
 3. **No Direct Exceptions in Domain**: Utilize `fpdart`'s `Either<Failure, Type>` pattern to handle control flow for exceptions.
+
+
+to build 
+flutter clean
+flutter pub get
+flutter build apk --release
+

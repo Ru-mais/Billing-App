@@ -100,7 +100,7 @@ class _HomePageState extends State<HomePage> {
             style: IconButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+                side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
               ),
             ),
           ),
@@ -111,7 +111,7 @@ class _HomePageState extends State<HomePage> {
             style: IconButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+                side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
               ),
             ),
           ),
@@ -143,13 +143,15 @@ class _HomePageState extends State<HomePage> {
                 child: _buildScannerSection(),
               ),
             Expanded(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    _buildTopCard(context),
-                    const SizedBox(height: 16),
-                    Expanded(child: _buildProductsCard(context)),
+                    if (!_isCameraOn) ...[
+                      _buildTopCard(context),
+                      const SizedBox(height: 16),
+                    ],
+                    _buildProductsCard(context),
                     const SizedBox(height: 16),
                     _buildBottomCard(context),
                   ],
@@ -167,15 +169,30 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
       ),
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          BlocBuilder<ProductBloc, ProductState>(
-            builder: (context, productState) {
-              return RawAutocomplete<Product>(
+      child: BlocBuilder<ProductBloc, ProductState>(
+        builder: (context, productState) {
+          void submitProductCode(String val) {
+            if (val.trim().isEmpty) return;
+            String barcodeToScan = val.trim();
+            final lowerVal = barcodeToScan.toLowerCase();
+            // Check if input matches name or barcode
+            final match = productState.products.where((p) => 
+                p.name.toLowerCase() == lowerVal || p.barcode.toLowerCase() == lowerVal).firstOrNull;
+            if (match != null) {
+              barcodeToScan = match.barcode;
+            }
+            context.read<BillingBloc>().add(ScanBarcodeEvent(barcodeToScan));
+            _manualCodeController.clear();
+            _manualCodeFocusNode.requestFocus();
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RawAutocomplete<Product>(
                 focusNode: _manualCodeFocusNode,
                 textEditingController: _manualCodeController,
                 optionsBuilder: (TextEditingValue textEditingValue) {
@@ -184,7 +201,7 @@ class _HomePageState extends State<HomePage> {
                   return productState.products.where((product) =>
                       product.name.toLowerCase().contains(query) || product.barcode.toLowerCase().contains(query));
                 },
-                displayStringForOption: (Product option) => option.barcode,
+                displayStringForOption: (Product option) => option.name,
                 onSelected: (Product selection) {
                   context.read<BillingBloc>().add(ScanBarcodeEvent(selection.barcode));
                   _manualCodeController.clear();
@@ -195,21 +212,15 @@ class _HomePageState extends State<HomePage> {
                     controller: textEditingController,
                     focusNode: focusNode,
                     decoration: InputDecoration(
-                      hintText: 'Enter product code',
+                      hintText: 'Enter product name or code',
                       hintStyle: TextStyle(color: Colors.grey[400]),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+                        borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
                       ),
                     ),
-                    onSubmitted: (val) {
-                      if (val.trim().isNotEmpty) {
-                        context.read<BillingBloc>().add(ScanBarcodeEvent(val.trim()));
-                        textEditingController.clear();
-                        focusNode.requestFocus();
-                      }
-                    },
+                    onSubmitted: submitProductCode,
                   );
                 },
                 optionsViewBuilder: (context, onSelected, options) {
@@ -238,47 +249,40 @@ class _HomePageState extends State<HomePage> {
                     ),
                   );
                 },
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  final val = _manualCodeController.text.trim();
-                  if (val.isNotEmpty) {
-                    context.read<BillingBloc>().add(ScanBarcodeEvent(val));
-                    _manualCodeController.clear();
-                    _manualCodeFocusNode.requestFocus();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                child: const Text('Add Product', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() => _isCameraOn = true);
-                  _scannerController.start();
-                },
-                icon: const Icon(Icons.qr_code_scanner, size: 18),
-                label: const Text('Scan'),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
-                  foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () => submitProductCode(_manualCodeController.text),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: const Text('Add Product', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() => _isCameraOn = true);
+                      _scannerController.start();
+                    },
+                    icon: const Icon(Icons.qr_code_scanner, size: 18),
+                    label: const Text('Scan'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                      foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -289,7 +293,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -297,22 +301,22 @@ class _HomePageState extends State<HomePage> {
         children: [
           Text('Products', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Expanded(
-            child: BlocBuilder<BillingBloc, BillingState>(
-              builder: (context, state) {
-                if (state.cartItems.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text('No products added', style: TextStyle(color: Colors.grey[500])),
-                  );
-                }
-                return ListView.separated(
-                  itemCount: state.cartItems.length,
-                  separatorBuilder: (context, index) => BorderSide.none == BorderSide.none ? Divider(color: Theme.of(context).dividerColor.withValues(alpha: 0.05), height: 1) : SizedBox(height: 8),
-                  itemBuilder: (context, index) => _buildCartItemCard(context, state.cartItems[index]),
+          BlocBuilder<BillingBloc, BillingState>(
+            builder: (context, state) {
+              if (state.cartItems.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('No products added', style: TextStyle(color: Colors.grey[500])),
                 );
-              },
-            ),
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: state.cartItems.length,
+                separatorBuilder: (context, index) => BorderSide.none == BorderSide.none ? Divider(color: Theme.of(context).dividerColor.withOpacity(0.05), height: 1) : SizedBox(height: 8),
+                itemBuilder: (context, index) => _buildCartItemCard(context, state.cartItems[index]),
+              );
+            },
           ),
         ],
       ),
@@ -324,7 +328,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)),
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
       ),
       padding: const EdgeInsets.all(16),
       child: BlocBuilder<BillingBloc, BillingState>(
@@ -360,7 +364,7 @@ class _HomePageState extends State<HomePage> {
                     backgroundColor: WidgetStateProperty.resolveWith<Color>(
                       (Set<WidgetState> states) {
                         if (states.contains(WidgetState.selected)) {
-                          return Theme.of(context).primaryColor.withValues(alpha: 0.15);
+                          return Theme.of(context).primaryColor.withOpacity(0.15);
                         }
                         return Colors.transparent;
                       },
@@ -397,9 +401,12 @@ class _HomePageState extends State<HomePage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       _scannerController.stop();
-                      context.push('/checkout');
+                      await context.push('/checkout');
+                      if (context.mounted && _isCameraOn) {
+                        _scannerController.start();
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).primaryColor,
@@ -430,7 +437,7 @@ class _HomePageState extends State<HomePage> {
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.5),
+              color: Colors.black.withOpacity(0.5),
             ),
           ),
           Center(
@@ -438,7 +445,7 @@ class _HomePageState extends State<HomePage> {
               width: 250,
               height: 250,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
+                border: Border.all(color: Colors.white.withOpacity(0.4), width: 2),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Stack(
@@ -495,7 +502,7 @@ class _HomePageState extends State<HomePage> {
             : Border.all(color: Colors.transparent),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).brightness == Brightness.dark ? Colors.black26 : Colors.black.withValues(alpha: 0.05), 
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.black26 : Colors.black.withOpacity(0.05), 
             blurRadius: 10, 
             offset: const Offset(0, 4)
           )
@@ -629,14 +636,14 @@ class _HomePageState extends State<HomePage> {
                             ? Colors.grey[50]
                             : Theme.of(context)
                                 .primaryColor
-                                .withValues(alpha: 0.08),
+                                .withOpacity(0.08),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isOutOfStock
                               ? Colors.grey[200]!
                               : Theme.of(context)
                                   .primaryColor
-                                  .withValues(alpha: 0.3),
+                                  .withOpacity(0.3),
                           width: 1.5,
                         ),
                       ),

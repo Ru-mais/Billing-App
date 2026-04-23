@@ -212,7 +212,7 @@ class _MonthlyPurchaseReportPageState
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF1B5E20).withValues(alpha: 0.3),
+                      color: const Color(0xFF1B5E20).withOpacity(0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     )
@@ -354,7 +354,7 @@ class _MonthlyPurchaseReportPageState
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: const Color(0xFF2E7D32)
-                                    .withValues(alpha: 0.1),
+                                    .withOpacity(0.1),
                                 child: Text(
                                   '$day',
                                   style: const TextStyle(

@@ -22,8 +22,8 @@ class AppTheme {
       displayLarge: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: baseColor),
       headlineMedium: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: baseColor),
       titleLarge: GoogleFonts.outfit(fontWeight: FontWeight.w600, color: baseColor),
-      bodyLarge: GoogleFonts.inter(fontSize: 16, color: baseColor.withValues(alpha: 0.9)),
-      bodyMedium: GoogleFonts.inter(fontSize: 14, color: baseColor.withValues(alpha: 0.8)),
+      bodyLarge: GoogleFonts.inter(fontSize: 16, color: baseColor.withOpacity(0.9)),
+      bodyMedium: GoogleFonts.inter(fontSize: 14, color: baseColor.withOpacity(0.8)),
     );
   }
 
@@ -89,7 +89,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1), width: 1),
+          side: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
         ),
         color: darkCard,
       ),

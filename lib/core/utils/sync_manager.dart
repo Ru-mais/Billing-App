@@ -103,7 +103,7 @@ class SyncManager {
       // 0. Pull Shop Settings
       if (!missingTables.contains('shop_settings')) {
         final shopData =
-            await _supabase.from('shop_settings').select().maybeSingle();
+            await _supabase.from('shop_settings').select().eq('user_id', user.id).maybeSingle();
         if (shopData != null) {
           final model = ShopModel(
             name: shopData['name'] ?? '',
@@ -119,7 +119,7 @@ class SyncManager {
 
       // 1. Pull Categories
       if (!missingTables.contains('categories')) {
-        final catData = await _supabase.from('categories').select('name');
+        final catData = await _supabase.from('categories').select('name').eq('user_id', user.id);
         final categories = catData.map((e) => e['name'] as String).toList();
         await HiveDatabase.categoryBox.clear();
         if (categories.isNotEmpty) {
@@ -129,7 +129,7 @@ class SyncManager {
 
       // 2. Pull Products
       if (!missingTables.contains('products')) {
-        final prodData = await _supabase.from('products').select();
+        final prodData = await _supabase.from('products').select().eq('user_id', user.id);
         await HiveDatabase.productBox.clear();
         for (var p in prodData) {
           final model = ProductModel(
@@ -149,7 +149,7 @@ class SyncManager {
 
       // 3. Pull Sales
       if (!missingTables.contains('sales')) {
-        final salesData = await _supabase.from('sales').select();
+        final salesData = await _supabase.from('sales').select().eq('user_id', user.id);
         await HiveDatabase.salesBox.clear();
         for (var s in salesData) {
           final model = SaleModel(
@@ -172,7 +172,7 @@ class SyncManager {
 
       // 4. Pull Purchases
       if (!missingTables.contains('purchase_orders')) {
-        final purchaseData = await _supabase.from('purchase_orders').select();
+        final purchaseData = await _supabase.from('purchase_orders').select().eq('user_id', user.id);
         await HiveDatabase.purchaseOrdersBox.clear();
         for (var p in purchaseData) {
           final model = PurchaseOrderModel(
@@ -237,9 +237,12 @@ class SyncManager {
 
   /// Pushes shop settings to the cloud
   static Future<void> pushShop(ShopModel shop) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
     try {
       await _supabase.from('shop_settings').upsert({
-        'id': 'shop_details',
+        'id': user.id, // Use user.id as document ID so each user has exactly one shop profile
+        'user_id': user.id,
         'name': shop.name,
         'address_line1': shop.addressLine1,
         'address_line2': shop.addressLine2,
@@ -254,9 +257,12 @@ class SyncManager {
 
   /// Pushes a specific purchase order to the cloud
   static Future<void> pushPurchaseOrder(PurchaseOrderModel order) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
     try {
       await _supabase.from('purchase_orders').upsert({
         'id': order.id,
+        'user_id': user.id,
         'timestamp': order.timestamp.toIso8601String(),
         'supplier_name': order.supplierName,
         'total_amount': order.totalAmount,
@@ -278,9 +284,12 @@ class SyncManager {
 
   /// Pushes a specific product to the cloud
   static Future<void> pushProduct(ProductModel product) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
     try {
       await _supabase.from('products').upsert({
         'id': product.id,
+        'user_id': user.id,
         'name': product.name,
         'barcode': product.barcode,
         'price': product.price,
@@ -297,9 +306,12 @@ class SyncManager {
 
   /// Pushes a specific sale to the cloud
   static Future<void> pushSale(SaleModel sale) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
     try {
       await _supabase.from('sales').insert({
         'id': sale.id,
+        'user_id': user.id,
         'timestamp': sale.timestamp.toIso8601String(),
         'total_amount': sale.totalAmount,
         'payment_method': sale.paymentMethod,
@@ -326,7 +338,10 @@ class SyncManager {
 
       await _supabase.from('categories').delete().eq('user_id', user.id);
       for (var cat in localCats) {
-        await _supabase.from('categories').insert({'name': cat});
+        await _supabase.from('categories').insert({
+          'name': cat,
+          'user_id': user.id,
+        });
       }
     } catch (e) {
       print('❌ Category Sync Failed: $e');
@@ -335,8 +350,10 @@ class SyncManager {
 
   /// Handles deletions
   static Future<void> deleteProduct(String id) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
     try {
-      await _supabase.from('products').delete().eq('id', id);
+      await _supabase.from('products').delete().eq('id', id).eq('user_id', user.id);
     } catch (e) {
       print('❌ Product Delete Sync Failed: $e');
     }

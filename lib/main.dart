@@ -92,10 +92,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      // Trigger auto-sync when app is minimized or closed
-      BackupHelper.autoSyncToCloud();
-    } else if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed) {
       // Auto-refresh from cloud each time app opens/resumes
       _refreshCloudData();
     }

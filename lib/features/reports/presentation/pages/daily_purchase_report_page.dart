@@ -179,7 +179,7 @@ class _DailyPurchaseReportPageState extends State<DailyPurchaseReportPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+                      color: const Color(0xFF2E7D32).withOpacity(0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     )
@@ -309,7 +309,7 @@ class _PurchaseOrderTile extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           )
@@ -317,7 +317,7 @@ class _PurchaseOrderTile extends StatelessWidget {
       ),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+          backgroundColor: const Color(0xFF2E7D32).withOpacity(0.1),
           child: const Icon(Icons.local_shipping_outlined,
               color: Color(0xFF2E7D32)),
         ),

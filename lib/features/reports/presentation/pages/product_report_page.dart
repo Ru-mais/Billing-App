@@ -181,7 +181,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                         onSelected: (selected) {
                           if (selected) setState(() => _selectedCategory = null);
                         },
-                        selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        selectedColor: AppTheme.primaryColor.withOpacity(0.2),
                         checkmarkColor: AppTheme.primaryColor,
                       ),
                       const SizedBox(width: 8),
@@ -196,7 +196,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                                 _selectedCategory = selected ? cat : null;
                               });
                             },
-                            selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                            selectedColor: AppTheme.primaryColor.withOpacity(0.2),
                             checkmarkColor: AppTheme.primaryColor,
                           ),
                         );
@@ -225,7 +225,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  color: AppTheme.primaryColor.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -262,9 +262,9 @@ class _ProductReportPageState extends State<ProductReportPage> {
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isOut
-                                    ? Colors.red.withValues(alpha: 0.25)
+                                    ? Colors.red.withOpacity(0.25)
                                     : isLow
-                                        ? Colors.orange.withValues(alpha: 0.25)
+                                        ? Colors.orange.withOpacity(0.25)
                                         : Colors.grey[100]!,
                               ),
                               boxShadow: const [
@@ -293,7 +293,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                        color: AppTheme.primaryColor.withOpacity(0.08),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
@@ -314,7 +314,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: stockColor.withValues(alpha: 0.1),
+                                        color: stockColor.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
@@ -346,9 +346,9 @@ class _ProductReportPageState extends State<ProductReportPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Text(label,
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
